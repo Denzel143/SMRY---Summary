@@ -10,6 +10,8 @@
  *   FIREBASE_PROJECT_ID     Project ID Firebase (Project settings → General). Dipakai untuk memverifikasi token.
  *   FIREBASE_API_KEY        Web API Key Firebase (Project settings → General). Memang publik; dikirim ke klien lewat action "config".
  *   FIREBASE_AUTH_DOMAIN    (opsional) default <FIREBASE_PROJECT_ID>.firebaseapp.com
+ *   GOOGLE_WEB_CLIENT_ID    Web client ID Google (Firebase → Authentication → Sign-in method → Google → Web SDK configuration).
+ *                           Dipakai app Android untuk login Google; diambil otomatis lewat action "config". Publik, bukan rahasia.
  *   SMRY_READ_WRITE_TOKEN   Token Blob (nama mengikuti awalan yang dipilih saat store dihubungkan ke project;
  *                           BLOB_READ_WRITE_TOKEN juga dikenali). SMRY_STORE_ID dan SMRY_WEBHOOK_PUBLIC_KEY tidak dipakai.
  *
@@ -18,7 +20,7 @@
  * folder  u/<Firebase uid>/  milik akun tersebut. Store bersifat private, jadi file tidak bisa dibuka lewat URL.
  *
  * Semua request: POST JSON { action, ... }. Balasan: JSON. 
- *   config                                  (tanpa login) → { firebase: { apiKey, authDomain, projectId } }
+ *   config                                  (tanpa login) → { firebase: { apiKey, authDomain, projectId }, googleClientId }
  *   manifest                                → { halls: { id: { updatedAt, deleted, photos } } }
  *   get      { id }                         → { hall }
  *   getPhoto { id, n }                      → { data: "data:image/jpeg;base64,..." }
@@ -202,7 +204,7 @@ async function handler(req, res) {
       const projectId = (process.env.FIREBASE_PROJECT_ID || "").trim(), apiKey = (process.env.FIREBASE_API_KEY || "").trim();
       if (!projectId || !apiKey) throw new HttpError(500, "Server is missing FIREBASE_PROJECT_ID or FIREBASE_API_KEY.");
       const authDomain = (process.env.FIREBASE_AUTH_DOMAIN || "").trim() || `${projectId}.firebaseapp.com`;
-      return send(200, { firebase: { apiKey, authDomain, projectId } });
+      return send(200, { firebase: { apiKey, authDomain, projectId }, googleClientId: (process.env.GOOGLE_WEB_CLIENT_ID || "").trim() });
     }
     const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || "");
     const user = await verifyIdToken(m && m[1]);
