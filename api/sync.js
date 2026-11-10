@@ -198,6 +198,7 @@ async function handler(req, res) {
     const user = await verifyIdToken(m && m[1]);
     send(200, await run(user.sub, body));
   } catch (e) {
+    if (!e.status || e.status >= 500) console.error("[api/sync]", e && e.stack || e);
     send(e.status || 500, { error: e.status ? e.message : "Server error." });
   }
 }
