@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SMRY</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js" onload="window.__katexReady&&window.__katexReady()"></script>
+<style>
+:root{--bg:#f5f5ff;--panel:#fff;--field:#fff;--text:#121429;--text2:#6b6f85;--indigo:#4552e6;--orange:#d97706;--bot:#e4e8ff;--line:rgba(0,0,0,.1);--err:#d32f2f;color-scheme:light}
+:root[data-theme=dark]{--bg:#0f1124;--panel:#1c1f3b;--field:#2b2e52;--text:#fff;--text2:#a6aac8;--indigo:#6c77ff;--orange:#fbbf24;--bot:#2b2e52;--line:rgba(255,255,255,.2);--err:#ff7b7b;color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{max-width:760px;margin:0 auto;height:100dvh;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.screen{display:flex;flex-direction:column;flex:1;min-height:0}
+.pad{padding:16px}
+.scroll{flex:1;overflow-y:auto;padding:14px 16px}
+.row{display:flex;align-items:center;gap:8px}
+.grow{flex:1;min-width:0}
+h1{font-size:28px;margin:0}h2{font-size:20px;margin:.2em 0}h3{font-size:17px;margin:.2em 0}
+.sec{color:var(--text2)}.small{font-size:12px}.bold{font-weight:700}
+button{font:inherit;cursor:pointer;border:0;outline:none;border-radius:999px;padding:10px 18px;background:transparent;color:var(--indigo);font-weight:600;transition:background .15s}
+button:disabled{opacity:.4;cursor:default}
+@media (hover:hover){button:hover:not(:disabled){background:color-mix(in srgb,var(--indigo) 16%,transparent)}button.danger:hover:not(:disabled){background:color-mix(in srgb,var(--err) 16%,transparent)}}
+button:active:not(:disabled){background:color-mix(in srgb,var(--indigo) 24%,transparent)}
+button:focus-visible{background:color-mix(in srgb,var(--indigo) 16%,transparent)}
+button.txt{padding:8px 10px}
+button.icon{color:var(--text);font-size:20px;padding:6px 10px;line-height:1}
+button.danger{color:var(--err)}
+button.block{width:100%;margin-top:8px}
+input,textarea,select{font:inherit;color:var(--text);background:var(--field);border:1px solid var(--line);border-radius:14px;padding:10px 14px;width:100%;outline:none}
+input:focus,textarea:focus{border-color:var(--indigo)}
+.card{background:var(--panel);border-radius:18px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.tabs{display:flex;margin:10px 16px 6px}
+.tabs button{flex:1;color:var(--text2);border-radius:12px 12px 0 0}
+.tabs button.on{color:var(--indigo);box-shadow:inset 0 -3px 0 var(--indigo)}
+.hall{display:flex;gap:12px;align-items:center;cursor:pointer}
+.hall img{width:64px;height:64px;object-fit:cover;border-radius:10px;background:var(--line)}
+.hall .t{font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.fab{position:fixed;right:max(20px,calc(50vw - 360px));bottom:calc(20px + env(safe-area-inset-bottom));width:58px;height:58px;border-radius:50%;font-size:30px;padding:0;font-size:36px;line-height:1}
+.head{display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.foot{padding:12px 14px;border-top:1px solid var(--line)}
+.drop{border:2px dashed var(--indigo);border-radius:18px;padding:28px;text-align:center;background:var(--panel);cursor:pointer;margin:12px 0}
+.photo{display:flex;align-items:center;gap:12px}.photo img{width:70px;height:70px;object-fit:cover;border-radius:10px}
+.strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}.strip img{width:90px;height:90px;object-fit:cover;border-radius:12px;cursor:pointer;flex:none}
+.radio{display:flex;align-items:center;gap:10px;padding:9px 4px;cursor:pointer}
+.radio input{width:20px;height:20px;accent-color:var(--indigo);padding:0}
+.pill{display:inline-block;border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer;background:var(--line);color:var(--text2);user-select:none}
+.pill.on{background:var(--indigo);color:#fff}
+.bubble{border-radius:16px;padding:10px 14px;margin:8px 0;max-width:88%;width:fit-content;overflow-wrap:anywhere}
+.bubble.user{background:var(--indigo);color:#fff;margin-left:auto}.bubble.bot{background:var(--bot)}
+.md p,.md .li,.md h4,.md blockquote{margin:.35em 0}.md .li{display:flex;gap:.5em}.md .li .b{flex:none;min-width:1.2em}
+.md blockquote{border-left:3px solid var(--indigo);padding-left:10px;font-style:italic}
+.md pre{background:rgba(128,128,128,.18);border-radius:10px;padding:10px;overflow-x:auto;margin:.4em 0}
+.md code{background:rgba(128,128,128,.18);border-radius:5px;padding:0 4px;font-size:.92em}
+.md pre code{background:none;padding:0}
+.md hr{border:0;border-top:1px solid var(--line)}
+.md h4.h1{font-size:1.3em}.md h4.h2{font-size:1.2em}.md h4.h3{font-size:1.1em}.md h4{font-size:1.05em}
+.md mark{color:#111;border-radius:4px;padding:0 2px}
+.md .disp{text-align:center;overflow-x:auto;margin:.4em 0}
+.legend{display:flex;align-items:center;gap:8px;margin:4px 0}.sw{width:34px;height:16px;border-radius:5px;flex:none}
+.err{color:var(--err);white-space:pre-wrap;cursor:pointer}
+.center{text-align:center}
+.spin{width:36px;height:36px;border:4px solid var(--line);border-top-color:var(--indigo);border-radius:50%;animation:s 1s linear infinite;margin:auto}@keyframes s{to{transform:rotate(360deg)}}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+.dialog{background:var(--panel);border-radius:20px;padding:20px;max-width:420px;width:100%}
+.dialog .btns{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:16px}
+.menu{position:fixed;background:var(--panel);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.3);z-index:60;min-width:190px;overflow:hidden}
+.menu div{padding:12px 16px;cursor:pointer}.menu div:hover{background:var(--line)}
+.lightbox{position:fixed;inset:0;background:#000;z-index:70;display:flex;flex-direction:column}
+.lightbox .view{flex:1;overflow:auto;display:flex}.lightbox img{margin:auto;max-width:100%;max-height:100%;object-fit:contain}
+.lightbox.zoom img{max-width:none;max-height:none;width:220%}
+.lightbox .bar{display:flex;justify-content:space-between;align-items:center;color:#fff;padding:12px}
+.lightbox button{color:#fff}.lightbox button:hover{background:rgba(255,255,255,.2)}
+.camlay{position:fixed;inset:0;z-index:80;background:#000;display:flex;align-items:center;justify-content:center}.camlay iframe{width:100%;height:100%;border:0;display:block}.camlay .camerr{color:#fff;text-align:center;padding:30px;max-width:420px}.camlay .camerr button{margin:6px;color:#fff}.camlay .camerr button:hover{background:rgba(255,255,255,.2)}
+#printArea{display:none}
+@media print{body>#app,.overlay,.menu,.fab{display:none!important}#printArea{display:block!important;color:#000;background:#fff;padding:0}
+#printArea img{max-width:100%;max-height:340px;margin:4px 0;border-radius:6px}#printArea .md mark{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+#printArea .bubble{background:none!important;color:#000!important;border:1px solid #bbb;max-width:100%}html,body{height:auto;background:#fff}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="printArea"></div>
+<script>
+"use strict";
+const ENDPOINT = "/api/api"; // Vercel Function (api/api.js): semua system instruction ada di server
+const MAX_PHOTOS = 5;
+const SUBJECTS = ["Mathematics","Physics","Chemistry","Biology","Indonesian Language","English Language","History","Geography","Economics","Sociology","Civics","Computer Science","Arts & Culture","Religious Education","Physical Education","Other"];
+const SORTS = ["Recently updated","Newest created","Oldest created","Title A–Z","Title Z–A","Subject"];
+const TIPS = ["Tip: highlighted colors group the same kind of information.","Tip: ask the chat to make practice questions from your lesson.","Tip: turn on Reasoning for a more accurate result.","Tip: tap a photo to preview it in full size.","Tip: temporary Study Halls are erased when you leave."];
+
+/* ═════════════ Utilitas ═════════════ */
+/* append() yang menerima array bersarang & mengabaikan null/false */
+const _append = Element.prototype.append;
+Element.prototype.append = function (...k) { return _append.apply(this, k.flat(Infinity).filter(c => c !== null && c !== undefined && c !== false)); };
+const $ = (s, r = document) => r.querySelector(s);
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "html") e.innerHTML = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (k in e && k !== "list") try { e[k] = v; } catch { e.setAttribute(k, v); }
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) if (c !== null && c !== undefined && c !== false) e.append(c.nodeType ? c : document.createTextNode(c));
+  return e;
+}
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
+const fmtDate = t => new Date(t).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* Kapital otomatis di awal kalimat untuk semua kolom input */
+function capitalize(v) { return v.replace(/(^|[.!?]\s+|\n\s*)([a-zà-ɏ])/g, (m, a, b) => a + b.toUpperCase()); }
+document.addEventListener("input", e => {
+  const el = e.target;
+  if (!(el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && (el.type === "text" || el.type === "search"))) || e.isComposing) return;
+  const nv = capitalize(el.value);
+  if (nv !== el.value) { const s = el.selectionStart, en = el.selectionEnd; el.value = nv; try { el.setSelectionRange(s, en); } catch {} }
+}, true);
+function field(tag, attrs) { const e = h(tag, { autocapitalize: "sentences", ...attrs }); return e; }
+
+/* ═════════════ Penyimpanan (IndexedDB) ═════════════ */
+const DB = {
+  db: null,
+  open() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open("smry", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("halls", { keyPath: "id" });
+      r.onsuccess = () => { this.db = r.result; res(); };
+      r.onerror = () => rej(r.error);
+    });
+  },
+  tx(mode, fn) { return new Promise((res, rej) => { const t = this.db.transaction("halls", mode); const rq = fn(t.objectStore("halls")); t.oncomplete = () => res(rq && rq.result); t.onerror = () => rej(t.error); }); },
+  all() { return this.tx("readonly", s => s.getAll()); },
+  put(x) { return this.tx("readwrite", s => s.put(x)); },
+  del(id) { return this.tx("readwrite", s => s.delete(id)); }
+};
+
+/* ═════════════ Model data ═════════════ */
+const stripHL = s => (s || "").replace(/\[\[#[0-9a-fA-F]{3,8}\|([\s\S]*?)\]\]/g, "$1");
+function contextText(s) {
+  return [s.title, s.summary, ...s.keyPoints.map(k => "- " + k), s.explanation].map(stripHL).join("\n");
+}
+
+/* ═════════════ Parser respons AI ═════════════ */
+function sections(text, names) {
+  text = text.replace(/```[a-z]*\n?/gi, "").trim();
+  const re = new RegExp("^(" + names.join("|") + "):[ \\t]*", "gm");
+  const hits = [...text.matchAll(re)];
+  const out = {};
+  hits.forEach((m, i) => { out[m[1]] = text.slice(m.index + m[0].length, i + 1 < hits.length ? hits[i + 1].index : undefined).trim(); });
+  return out;
+}
+const bullets = t => (t || "").split("\n").map(l => l.trim()).filter(l => /^[-•*]\s+/.test(l)).map(l => l.replace(/^[-•*]\s+/, ""));
+const legendOf = t => (t || "").split("\n").map(l => l.trim().match(/^(#[0-9a-fA-F]{3,8})\s*=\s*(.+)$/)).filter(Boolean).map(m => ({ color: m[1], meaning: m[2] }));
+function parseSummary(raw) {
+  const s = sections(raw, ["TITLE", "SUMMARY", "KEY POINTS", "EXPLANATION", "LEGEND"]);
+  if (!s.TITLE || !s.SUMMARY) throw new Error("The AI answer was not in the expected format.");
+  return { title: s.TITLE.split("\n")[0].trim(), summary: s.SUMMARY, keyPoints: bullets(s["KEY POINTS"]), explanation: s.EXPLANATION || "", legend: legendOf(s.LEGEND) };
+}
+function parseOverall(raw) {
+  const s = sections(raw, ["OVERVIEW", "TOPICS", "DETAILS", "LEGEND"]);
+  if (!s.OVERVIEW) throw new Error("The AI answer was not in the expected format.");
+  const details = [];
+  (s.DETAILS || "").split(/^##\s+/m).slice(1).forEach(b => { const i = b.indexOf("\n"); details.push({ topic: (i < 0 ? b : b.slice(0, i)).trim(), explanation: (i < 0 ? "" : b.slice(i)).trim() }); });
+  return { overview: s.OVERVIEW, topics: bullets(s.TOPICS), details, legend: legendOf(s.LEGEND) };
+}
+
+/* ═════════════ Klien AI (/api/api → Gemini) ═════════════ */
+// instruction: "summary" | "overall" | "chat"; payload: { mode, message, draft, vars }
+async function llm(instruction, payload, images, onPartial, signal) {
+  const body = { instruction, ...payload, images: images || [] };
+  let res;
+  try { res = await fetch(ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal }); }
+  catch (e) { if (e.name === "AbortError") throw e; throw new Error("Connection to the server failed or timed out."); }
+  if (!res.ok) {
+    let msg = "Request failed (HTTP " + res.status + ").";
+    try { const j = await res.json(); if (j.error) msg = String(j.error); } catch {}
+    throw new Error(msg);
+  }
+  const rd = res.body.getReader(), dec = new TextDecoder();
+  let out = "";
+  for (;;) {
+    const { done, value } = await rd.read();
+    if (done) break;
+    out += dec.decode(value, { stream: true });
+    onPartial && onPartial(out);
+  }
+  return out.trim();
+}
+
+/* ═════════════ Alur ringkasan ═════════════ */
+const basePrompt = (subject, user, n) => "Subject: " + subject + "\nUser's custom instruction: " + (user || "(none)") + "\n\nThe lesson photos are attached (" + n + " photo" + (n === 1 ? "" : "s") + ", in order).";
+async function summarize(images, subject, userPrompt, reasoning, status, signal) {
+  const message = basePrompt(subject, userPrompt, images.length);
+  const pass = async draft => {
+    for (let t = 0; ; t++) {
+      try { return parseSummary(await llm("summary", { mode: draft ? "review" : "draft", message, draft }, images, null, signal)); }
+      catch (e) { if (e.name === "AbortError" || t >= 1) throw e; }
+    }
+  };
+  status(reasoning ? "Reasoning 1 of 3: drafting…" : "Analyzing and summarizing (AI)…");
+  let best = await pass(null);
+  if (reasoning) for (let p = 2; p <= 3; p++) {
+    status("Reasoning " + p + " of 3: reviewing…");
+    try { best = await pass(serializeSummary(best)); } catch (e) { if (e.name === "AbortError") throw e; }
+  }
+  return best;
+}
+const serializeSummary = s => "TITLE: " + s.title + "\nSUMMARY: " + s.summary + "\nKEY POINTS:\n" + s.keyPoints.map(k => "- " + k).join("\n") + "\nEXPLANATION: " + s.explanation + "\nLEGEND:\n" + s.legend.map(l => l.color + " = " + l.meaning).join("\n");
+
+function chatVars(hall, history) {
+  let material = contextText(hall.summary); if (material.length > 1800) material = material.slice(0, 1800);
+  let convo = "";
+  if (history.length) {
+    convo = "\n\nEarlier conversation (for context):\n";
+    history.slice(-6).forEach(m => { convo += (m.user ? "Student" : "Tutor") + ": " + m.text.slice(0, 300) + "\n"; });
+  }
+  return { subject: hall.subject, material, convo };
+}
+async function chat(hall, prompt, history, reasoning, images, onLive, onStatus, signal) {
+  const vars = chatVars(hall, history);
+  const call = (draft, live) => llm("chat", { mode: draft ? "review" : "draft", message: prompt, draft, vars }, images, live, signal);
+  if (!reasoning) return call(null, onLive);
+  onStatus("Reasoning 1 of 3: drafting…");
+  let best = await call(null, null);
+  for (let p = 2; p <= 3; p++) {
+    onStatus("Reasoning " + p + " of 3: reviewing…");
+    try { best = await call(best, p === 3 ? onLive : null); } catch (e) { if (e.name === "AbortError") throw e; }
+  }
+  return best;
+}
+async function summarizeAll(halls, reasoning, status, signal) {
+  const message = [...halls].sort((a, b) => a.createdAt - b.createdAt).map((x, i) => {
+    const convo = x.messages.slice(-20).map(m => (m.user ? "Student: " : "Tutor: ") + m.text.replace(/\n/g, " ").slice(0, 300)).join("\n");
+    return "=== Study Hall " + (i + 1) + ": " + x.title + " (Subject: " + x.subject + ") ===\nMaterial:\n" + contextText(x.summary).slice(0, 2500) + (convo ? "\nConversation:\n" + convo : "");
+  }).join("\n\n");
+  const pass = async draft => {
+    for (let t = 0; ; t++) {
+      try { return parseOverall(await llm("overall", { mode: draft ? "review" : "draft", message, draft }, [], null, signal)); }
+      catch (e) { if (e.name === "AbortError" || t >= 1) throw e; }
+    }
+  };
+  status(reasoning ? "Reasoning 1 of 3: drafting…" : "Summarizing…");
+  let best = await pass(null);
+  if (reasoning) for (let p = 2; p <= 3; p++) {
+    status("Reasoning " + p + " of 3: reviewing…");
+    const draft = "OVERVIEW: " + best.overview + "\nTOPICS:\n" + best.topics.map(t => "- " + t).join("\n") + "\nDETAILS:\n" + best.details.map(d => "## " + d.topic + "\n" + d.explanation).join("\n") + "\nLEGEND:\n" + best.legend.map(l => l.color + " = " + l.meaning).join("\n");
+    try { best = await pass(draft); } catch (e) { if (e.name === "AbortError") throw e; }
+  }
+  return best;
+}
+
+/* ═════════════ Render teks: Markdown + highlight + LaTeX ═════════════ */
+function mathHTML(tex, display) {
+  if (window.katex) { try { return katex.renderToString(tex, { displayMode: display, throwOnError: false }); } catch {} }
+  return "<code>" + esc(tex) + "</code>";
+}
+function inline(t) {
+  t = esc(t);
+  t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+  t = t.replace(/\[\[(#[0-9a-fA-F]{3,8})\|([\s\S]*?)\]\]/g, '<mark style="background:$1">$2</mark>');
+  t = t.replace(/\*\*([^*]+?)\*\*/g, "<b>$1</b>").replace(/(^|[\s(])\*(?!\s)([^*]+?)\*(?=$|[\s).,;:!?])/g, "$1<i>$2</i>");
+  return t;
+}
+function md(src) {
+  const maths = [];
+  src = (src || "").replace(/\r/g, "")
+    .replace(/\$\$([\s\S]+?)\$\$/g, (m, t) => "\u0000" + (maths.push([t, true]) - 1) + "\u0000")
+    .replace(/(?<![\\$])\$([^$\n]+?)\$(?!\d)/g, (m, t) => "\u0000" + (maths.push([t, false]) - 1) + "\u0000");
+  const out = []; let para = [], code = null;
+  const flush = () => { if (para.length) { out.push("<p>" + para.map(inline).join("<br>") + "</p>"); para = []; } };
+  for (const line of src.split("\n")) {
+    const t = line.trim(); let m;
+    if (code !== null) { if (t.startsWith("```")) { out.push("<pre><code>" + esc(code.join("\n")) + "</code></pre>"); code = null; } else code.push(line); continue; }
+    if (t.startsWith("```")) { flush(); code = []; continue; }
+    if (!t) { flush(); continue; }
+    if ((m = line.match(/^\s{0,3}(#{1,4})\s+(.*)$/))) { flush(); out.push('<h4 class="h' + m[1].length + '">' + inline(m[2]) + "</h4>"); }
+    else if (/^\s*([-*_]\s*){3,}$/.test(line)) { flush(); out.push("<hr>"); }
+    else if ((m = line.match(/^(\s*)[-*•]\s+(.*)$/))) { flush(); const l = Math.min(3, Math.floor(m[1].replace(/\t/g, "    ").length / 2)); out.push('<div class="li" style="margin-left:' + l * 1.2 + 'em"><span class="b">' + (l ? "◦" : "•") + "</span><span>" + inline(m[2]) + "</span></div>"); }
+    else if ((m = line.match(/^(\s*)(\d{1,3})[.)]\s+(.*)$/))) { flush(); const l = Math.min(3, Math.floor(m[1].replace(/\t/g, "    ").length / 2)); out.push('<div class="li" style="margin-left:' + l * 1.2 + 'em"><span class="b">' + m[2] + ".</span><span>" + inline(m[3]) + "</span></div>"); }
+    else if (t.startsWith(">")) { flush(); out.push("<blockquote>" + inline(t.replace(/^>+\s?/, "")) + "</blockquote>"); }
+    else para.push(t);
+  }
+  if (code !== null) out.push("<pre><code>" + esc(code.join("\n")) + "</code></pre>");
+  flush();
+  return out.join("").replace(/<p>\u0000(\d+)\u0000<\/p>/g, (m, i) => maths[i][1] ? '<div class="disp">' + mathHTML(maths[i][0], true) + "</div>" : m.replace(/\u0000(\d+)\u0000/g, (_, j) => mathHTML(maths[j][0], false)))
+    .replace(/\u0000(\d+)\u0000/g, (m, i) => mathHTML(maths[i][0], maths[i][1]));
+}
+const mdEl = (src, cls) => h("div", { class: "md " + (cls || ""), html: md(src) });
+function legendEl(legend) {
+  return h("div", {}, legend.map(l => h("div", { class: "legend" }, h("span", { class: "sw", style: "background:" + l.color }), h("span", { class: "small" }, l.meaning))));
+}
+function summaryEl(s) {
+  return h("div", {},
+    h("h2", {}, s.title), mdEl(s.summary),
+    s.keyPoints.length ? [h("h3", {}, "Key Points"), mdEl(s.keyPoints.map(k => "- " + k).join("\n"))] : null,
+    s.explanation ? [h("h3", {}, "Explanation"), mdEl(s.explanation)] : null,
+    s.legend.length ? [h("h3", {}, "Color Legend"), legendEl(s.legend)] : null);
+}
+window.__katexReady = () => { if (typeof render === "function") rerender(); };
+
+/* ═════════════ UI umum ═════════════ */
+function modal(title, message, buttons, content) {
+  const ov = h("div", { class: "overlay" });
+  const close = () => ov.remove();
+  const box = h("div", { class: "dialog" }, h("h3", {}, title), message ? h("p", { class: "sec" }, message) : null, content || null,
+    h("div", { class: "btns" }, buttons.map(b => h("button", { class: b.cls || "txt", onclick: () => { if (b.fn) { if (b.fn() === false) return; } close(); } }, b.label))));
+  ov.append(box);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  document.body.append(ov);
+  const i = $("input,textarea", box); if (i) { i.focus(); i.select && i.select(); }
+  return close;
+}
+function popMenu(anchor, items) {
+  document.querySelectorAll(".menu").forEach(m => m.remove());
+  const r = anchor.getBoundingClientRect();
+  const m = h("div", { class: "menu", style: "top:" + Math.min(r.bottom + 4, innerHeight - items.length * 46 - 10) + "px;right:" + Math.max(8, innerWidth - r.right) + "px" },
+    items.map(([label, fn]) => h("div", { onclick: () => { m.remove(); fn(); } }, label)));
+  document.body.append(m);
+  setTimeout(() => document.addEventListener("click", () => m.remove(), { once: true }), 0);
+}
+function lightbox(photos, start) {
+  let i = start, zoom = false;
+  const img = h("img"), cnt = h("span");
+  const lb = h("div", { class: "lightbox" },
+    h("div", { class: "bar" }, h("button", { onclick: () => { i = (i - 1 + photos.length) % photos.length; show(); } }, "‹"), cnt,
+      h("button", { onclick: () => { i = (i + 1) % photos.length; show(); } }, "›"), h("button", { onclick: () => lb.remove() }, "✕")),
+    h("div", { class: "view" }, img));
+  img.onclick = () => { zoom = !zoom; lb.classList.toggle("zoom", zoom); };
+  const show = () => { img.src = photos[i]; cnt.textContent = (i + 1) + " / " + photos.length; };
+  show(); document.body.append(lb);
+}
+function reasoningPill(key) {
+  const p = h("span", { class: "pill" });
+  const set = () => { const on = LS.get(key, false); p.className = "pill" + (on ? " on" : ""); p.textContent = "🧠 Reasoning " + (on ? "ON" : "OFF"); };
+  p.onclick = () => { LS.set(key, !LS.get(key, false)); set(); }; set(); return p;
+}
+function fileToJpeg(file, max = 1400, q = 0.75) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const sc = Math.min(1, max / Math.max(im.width, im.height));
+      const c = document.createElement("canvas"); c.width = Math.round(im.width * sc); c.height = Math.round(im.height * sc);
+      const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(im, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); res(c.toDataURL("image/jpeg", q));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error("Cannot read image")); };
+    im.src = url;
+  });
+}
+const toast = msg => { const t = h("div", { class: "menu", style: "left:50%;bottom:90px;transform:translateX(-50%);padding:12px 18px" }, msg); document.body.append(t); setTimeout(() => t.remove(), 2600); };
+
+
+/* ═════════════ Kamera (overlay iframe + getUserMedia) ═════════════ */
+const CAM_HTML = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>'
+ + 'html,body{margin:0;height:100%;background:#000;color:#fff;font:15px system-ui,sans-serif;overflow:hidden}'
+ + 'video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}'
+ + '.bar{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:space-between;padding:18px 22px;background:linear-gradient(transparent,rgba(0,0,0,.65))}'
+ + 'button{border:0;outline:none;border-radius:999px;background:transparent;color:#fff;font:inherit;font-weight:600;padding:12px 20px;cursor:pointer;transition:background .15s}button:hover{background:rgba(255,255,255,.22)}'
+ + '#shot{width:72px;height:72px;padding:0;box-shadow:inset 0 0 0 5px #fff}#shot:hover{background:rgba(255,255,255,.35)}#shot:active{transform:scale(.92)}'
+ + '#cnt{position:absolute;top:14px;left:0;right:0;text-align:center;font-weight:600;text-shadow:0 1px 4px #000}'
+ + '#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}'
+ + '</style></head><body><video id="v" autoplay playsinline muted></video><div id="flash"></div><div id="cnt">Point at the lesson</div>'
+ + '<div class="bar"><button id="done">Done</button><button id="shot" aria-label="Take photo"></button><button id="flip">Flip</button></div>'
+ + '<script>'
+ + 'var facing="environment",stream=null,n=0,v=document.getElementById("v");'
+ + 'function err(m){parent.postMessage({type:"smry-camera-error",message:String(m)},"*");}'
+ + 'function start(){if(stream)stream.getTracks().forEach(function(t){t.stop();});'
+ + 'navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1920},height:{ideal:1080}},audio:false})'
+ + '.then(function(s){stream=s;v.srcObject=s;}).catch(function(e){err(e&&e.message||e);});}'
+ + 'if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)err("Camera is not supported here");else start();'
+ + 'document.getElementById("shot").onclick=function(){if(!v.videoWidth)return;var sc=Math.min(1,1400/Math.max(v.videoWidth,v.videoHeight));'
+ + 'var c=document.createElement("canvas");c.width=Math.round(v.videoWidth*sc);c.height=Math.round(v.videoHeight*sc);c.getContext("2d").drawImage(v,0,0,c.width,c.height);'
+ + 'parent.postMessage({type:"smry-photo",data:c.toDataURL("image/jpeg",.75)},"*");n++;document.getElementById("cnt").textContent="Photos taken: "+n;'
+ + 'var f=document.getElementById("flash");f.style.opacity=.8;setTimeout(function(){f.style.opacity=0;},120);};'
+ + 'document.getElementById("done").onclick=function(){parent.postMessage({type:"smry-camera-close"},"*");};'
+ + 'document.getElementById("flip").onclick=function(){facing=facing==="environment"?"user":"environment";start();};'
+ + '<\/script></body></html>';
+
+async function addPhotos(w, files) {
+  files = [...files]; const slots = MAX_PHOTOS - w.images.length;
+  if (files.length > slots) toast("Maximum " + MAX_PHOTOS + " photos. Some photos were not added.");
+  for (const f of files.slice(0, Math.max(0, slots))) { try { w.images.push(await fileToJpeg(f)); } catch { toast("Some photos could not be read."); } }
+  rerender();
+}
+async function pasteFromClipboard(w) {
+  try {
+    const found = [];
+    for (const it of await navigator.clipboard.read()) for (const t of it.types) if (t.startsWith("image/")) { found.push(await it.getType(t)); break; }
+    if (!found.length) { toast("No image found in the clipboard."); return; }
+    await addPhotos(w, found);
+  } catch { toast("Cannot read the clipboard. Allow clipboard access, or press Ctrl+V."); }
+}
+document.addEventListener("paste", e => {
+  const w = App.wizard;
+  if (App.view !== "wizard" || !w || w.step !== 0 || document.querySelector(".overlay")) return;
+  const files = [...(e.clipboardData ? e.clipboardData.files : [])].filter(f => f.type.startsWith("image/"));
+  if (files.length) { e.preventDefault(); addPhotos(w, files); }
+});
+function openCamera(w) {
+  const ov = h("div", { class: "camlay" });
+  const fr = h("iframe", { allow: "camera *", srcdoc: CAM_HTML, title: "Camera" });
+  const close = () => { window.removeEventListener("message", onMsg); document.removeEventListener("keydown", onKey); ov.remove(); };
+  const onKey = e => { if (e.key === "Escape") close(); };
+  const onMsg = e => {
+    if (e.source !== fr.contentWindow) return;
+    const d = e.data || {};
+    if (d.type === "smry-photo") {
+      if (w.images.length < MAX_PHOTOS) w.images.push(d.data);
+      rerender();
+      if (w.images.length >= MAX_PHOTOS) { toast("Maximum " + MAX_PHOTOS + " photos reached."); close(); }
+    } else if (d.type === "smry-camera-close") close();
+    else if (d.type === "smry-camera-error") {
+      ov.innerHTML = "";
+      ov.append(h("div", { class: "camerr" }, h("p", {}, "Camera unavailable: " + d.message),
+        h("button", { onclick: () => { const i = h("input", { type: "file", accept: "image/*", capture: "environment" }); i.onchange = () => { close(); addPhotos(w, i.files); }; i.click(); } }, "Use device camera app"),
+        h("button", { class: "out", onclick: close }, "Close")));
+    }
+  };
+  window.addEventListener("message", onMsg); document.addEventListener("keydown", onKey);
+  ov.append(fr); document.body.append(ov);
+}
+
+/* ═════════════ PDF (lewat dialog cetak → Save as PDF) ═════════════ */
+function exportPdf(hall) {
+  const pa = $("#printArea"); pa.innerHTML = "";
+  pa.append(h("h1", {}, hall.title), h("p", { class: "sec" }, hall.subject + " · " + fmtDate(Date.now())),
+    h("div", {}, hall.photos.map(p => h("img", { src: p }))), summaryEl(hall.summary));
+  if (hall.messages.length) pa.append(h("h3", {}, "Chat"), hall.messages.map(m => h("div", { class: "bubble " + (m.user ? "user" : "bot") }, mdEl(m.text))));
+  const old = document.title; document.title = "Smry - " + hall.title;
+  const done = () => { pa.innerHTML = ""; document.title = old; window.removeEventListener("afterprint", done); };
+  window.addEventListener("afterprint", done);
+  setTimeout(() => window.print(), 300);
+}
+
+/* ═════════════ Aplikasi ═════════════ */
+const App = { halls: [], tempHall: null, tab: "home", query: "", overall: LS.get("overall", null), overallState: { loading: false, status: "", error: null, abort: null }, view: "home", wizard: null, hallId: null };
+const root = $("#app");
+let render = () => {};
+function rerender() { render(); }
+function go(view, extra) { App.view = view; Object.assign(App, extra || {}); render(); }
+function applyTheme() {
+  const pref = LS.get("appearance", "system");
+  const dark = pref === "dark" || (pref === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+}
+let wake = null;
+async function applyWake() { try { if (LS.get("keepOn", false) && "wakeLock" in navigator) wake = await navigator.wakeLock.request("screen"); else if (wake) { await wake.release(); wake = null; } } catch {} }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") applyWake(); });
+
+/* ── Settings ── */
+function openSettings() {
+  const sel = h("select", { onchange: e => { LS.set("appearance", e.target.value); applyTheme(); } }, [["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([v, l]) => h("option", { value: v, selected: LS.get("appearance", "system") === v }, l)));
+  const keep = h("input", { type: "checkbox", checked: LS.get("keepOn", false), style: "width:20px;height:20px", onchange: e => { LS.set("keepOn", e.target.checked); applyWake(); } });
+  const content = h("div", {}, h("p", { class: "bold" }, "Appearance"), sel,
+    h("label", { class: "row", style: "margin-top:12px" }, keep, "Keep screen on"),
+    h("p", { class: "small sec", style: "margin-top:12px" }, "Powered by Gemini. An internet connection is required."),
+    h("p", { class: "small sec" }, "Study Halls older than 30 days are deleted automatically."));
+  modal("Settings", null, [{ label: "Done", cls: "" }], content);
+}
+
+/* ── Home ── */
+function homeScreen() {
+  const list = h("div", { class: "scroll" });
+  const fillList = () => {
+    list.innerHTML = "";
+    const q = App.query.trim().toLowerCase(), sort = LS.get("sort", 0);
+    const items = App.halls.filter(x => !q || x.title.toLowerCase().includes(q) || x.subject.toLowerCase().includes(q) || stripHL(x.summary.summary).toLowerCase().includes(q));
+    const cmp = [(a, b) => b.updatedAt - a.updatedAt, (a, b) => b.createdAt - a.createdAt, (a, b) => a.createdAt - b.createdAt, (a, b) => a.title.localeCompare(b.title), (a, b) => b.title.localeCompare(a.title), (a, b) => a.subject.localeCompare(b.subject) || b.updatedAt - a.updatedAt][sort];
+    items.sort(cmp);
+    if (!items.length) { list.append(h("p", { class: "sec center", style: "margin-top:60px" }, App.halls.length ? "No Study Hall matches your search." : "No Study Halls yet. Tap + to create your first one.")); return; }
+    items.forEach(x => list.append(h("div", { class: "card hall", onclick: () => go("hall", { hallId: x.id, temp: false }) },
+      h("img", { src: x.photos[0] || "" }), h("div", { class: "grow" }, h("div", { class: "t" }, x.title), h("div", { class: "sec small" }, x.subject), h("div", { class: "sec small" }, fmtDate(x.updatedAt))),
+      h("button", { class: "icon", "aria-label": "More", onclick: e => { e.stopPropagation(); popMenu(e.currentTarget, [["Rename", () => renameHall(x, fillList)], ["Delete", () => deleteHall(x)]]); } }, "⋮"))));
+  };
+  const search = field("input", { type: "search", placeholder: "Search Study Halls", value: App.query, oninput: e => { App.query = e.target.value; fillList(); } });
+  const sortBtn = h("button", { class: "icon", "aria-label": "Sort", onclick: e => popMenu(e.currentTarget, SORTS.map((l, i) => [(LS.get("sort", 0) === i ? "✓ " : "   ") + l, () => { LS.set("sort", i); fillList(); }])) }, "⇅");
+  fillList();
+  return h("div", { class: "screen" }, h("div", { class: "row", style: "padding:6px 16px" }, search, sortBtn), list);
+}
+function renameHall(x, after) {
+  const inp = field("input", { type: "text", value: x.title });
+  modal("Rename Study Hall", null, [{ label: "Cancel" }, { label: "Save", cls: "", fn: async () => { const v = inp.value.trim(); if (v) { x.title = v; x.updatedAt = Date.now(); if (App.tempHall !== x) await DB.put(x); } after ? after() : rerender(); } }], inp);
+}
+function deleteHall(x) {
+  modal('Delete "' + x.title + '"?', "The photos, material, and all chat history inside will be permanently deleted.", [{ label: "Cancel" }, { label: "Delete", cls: "danger", fn: async () => { await DB.del(x.id); App.halls = App.halls.filter(y => y !== x); rerender(); } }]);
+}
+
+/* ── Ringkasan keseluruhan ── */
+function overallScreen() {
+  const st = App.overallState, box = h("div", { class: "scroll" });
+  if (!App.halls.length) { box.append(h("p", { class: "sec" }, "No Study Halls yet. Create one first, then come back here to summarize everything.")); return h("div", { class: "screen" }, box); }
+  box.append(h("div", { class: "row" }, reasoningPill("r_overall"), h("span", { class: "grow" }),
+    h("button", { onclick: () => { if (st.loading) st.abort && st.abort.abort(); else startOverall(); } }, st.loading ? "Cancel" : App.overall ? "Refresh" : "Summarize all")));
+  if (st.loading) box.append(h("p", { class: "sec" }, "⏳ " + st.status));
+  if (st.error) box.append(h("p", { class: "err" }, st.error));
+  const o = App.overall;
+  if (o) {
+    const s = o.summary;
+    box.append(h("p", { class: "sec small" }, "Updated " + fmtDate(o.date) + " • " + o.count + " Study Hall"),
+      h("div", { class: "card" }, h("h3", {}, "Overview"), mdEl(s.overview), h("h3", {}, "Topics"), mdEl(s.topics.map(t => "- " + t).join("\n")),
+        s.details.map(d => [h("h3", {}, d.topic), mdEl(d.explanation)]), s.legend.length ? [h("h3", {}, "Color Legend"), legendEl(s.legend)] : null));
+  }
+  return h("div", { class: "screen" }, box);
+}
+async function startOverall() {
+  const st = App.overallState; if (st.loading) return;
+  st.loading = true; st.error = null; st.abort = new AbortController(); rerender();
+  try {
+    const r = await summarizeAll(App.halls, LS.get("r_overall", false), s => { st.status = s; if (App.view === "home" && App.tab === "summary") rerender(); }, st.abort.signal);
+    App.overall = { summary: r, date: Date.now(), count: App.halls.length }; LS.set("overall", App.overall);
+  } catch (e) { if (e.name !== "AbortError") st.error = e.message; }
+  st.loading = false; rerender();
+}
+
+function mainScreen() {
+  const body = App.tab === "home" ? homeScreen() : overallScreen();
+  const tab = (k, l) => h("button", { class: App.tab === k ? "on" : "", onclick: () => { App.tab = k; rerender(); } }, l);
+  const newBtn = () => modal("New Study Hall", "Permanent is saved on Home. Temporary is erased as soon as you leave the room.",
+    [{ label: "Cancel" }, { label: "Temporary", cls: "out", fn: () => startWizard(true) }, { label: "Permanent", cls: "", fn: () => startWizard(false) }]);
+  return h("div", { class: "screen" },
+    h("div", { class: "row pad", style: "padding-bottom:0" }, h("div", { class: "grow" }, h("h1", {}, "SMRY"), h("div", { class: "sec" }, "Summarize your lessons")), h("button", { class: "icon", "aria-label": "Settings", onclick: openSettings }, "⚙")),
+    h("div", { class: "tabs" }, tab("home", "Home"), tab("summary", "Summary")), body,
+    App.tab === "home" ? h("button", { class: "fab", "aria-label": "Create new Study Hall", onclick: newBtn }, "+") : null);
+}
+
+/* ── Wizard ── */
+function startWizard(temp) { App.wizard = { step: 0, temp, images: [], subject: null, custom: "", prompt: "", status: "", error: null, abort: null, tipI: 0 }; go("wizard"); }
+function wizardScreen() {
+  const w = App.wizard, titles = ["Lesson Photos", "Choose Subject", "Extra Instructions", "Processing", "Summary Result"];
+  const subj = () => w.subject === "Other" ? w.custom.trim() : (w.subject || "");
+  const can = () => w.step === 0 ? w.images.length > 0 : w.step === 1 ? !!subj() : true;
+  const back = () => {
+    if (w.step === 0 || w.step === 4) { go("home"); return; }
+    if (w.step === 3) w.abort && w.abort.abort();
+    w.step--; rerender();
+  };
+  const body = h("div", { class: "scroll" }), foot = h("div", { class: "foot" });
+  let next = null;
+  const upd = () => { if (next) next.disabled = !can(); };
+
+  if (w.step === 0) {
+    const gallery = h("input", { type: "file", accept: "image/*", multiple: true, hidden: true, onchange: e => addPhotos(w, e.target.files) });
+    body.append(h("div", { class: "row" }, h("h3", { class: "grow" }, "Lesson photos"), h("span", { class: "sec" }, w.images.length + "/" + MAX_PHOTOS)),
+      h("div", { class: "drop", ondragover: e => e.preventDefault(), ondrop: e => { e.preventDefault(); addPhotos(w, [...e.dataTransfer.files].filter(f => f.type.startsWith("image/"))); }, onclick: () => { if (w.images.length >= MAX_PHOTOS) return; modal("Add photos", null, [{ label: "Cancel" }, { label: "Camera", cls: "out", fn: () => openCamera(w) }, { label: "Paste", cls: "out", fn: () => pasteFromClipboard(w) }, { label: "Photos / File", cls: "", fn: () => gallery.click() }]); } },
+        w.images.length >= MAX_PHOTOS ? "Limit of " + MAX_PHOTOS + " photos reached. Delete one to replace it." : h("div", {}, h("div", { style: "font-size:34px" }, "＋"), "Drop, paste, or upload photos here", h("div", { class: "sec small" }, "(Camera, Photos, File or Paste)"))),
+      gallery,
+      w.images.length < MAX_PHOTOS ? h("div", { class: "row", style: "justify-content:center;margin-bottom:10px" }, h("button", { class: "out", onclick: () => pasteFromClipboard(w) }, "📋 Paste image"), h("button", { class: "out", onclick: () => openCamera(w) }, "📷 Camera")) : null,
+      w.images.map((u, i) => h("div", { class: "card photo" }, h("img", { src: u, onclick: () => lightbox(w.images, i) }), h("b", { class: "grow" }, "Photo " + (i + 1)),
+        h("button", { class: "icon", "aria-label": "Delete photo " + (i + 1), onclick: () => { w.images.splice(i, 1); rerender(); } }, "🗑"))),
+      w.images.length > 1 ? h("button", { class: "out", onclick: () => { w.images = []; rerender(); } }, "Delete all photos") : null);
+  } else if (w.step === 1) {
+    body.append(h("h3", {}, "What subject did the teacher explain?"),
+      SUBJECTS.map(s => h("label", { class: "radio" }, h("input", { type: "radio", name: "subj", checked: w.subject === s, onchange: () => { w.subject = s; rerender(); } }), s)),
+      w.subject === "Other" ? field("input", { type: "text", placeholder: "Type the subject", value: w.custom, oninput: e => { w.custom = e.target.value; upd(); } }) : null);
+  } else if (w.step === 2) {
+    body.append(h("h3", {}, "Any special requests? (optional)"), h("p", { class: "sec small" }, 'Example: "Make it short bullet points" or "Explain it like I\'m in middle school".'),
+      field("textarea", { rows: 5, placeholder: "Type here…", value: w.prompt, oninput: e => { w.prompt = e.target.value; } }),
+      h("div", { style: "margin:12px 0 4px" }, reasoningPill("r_summary")),
+      h("p", { class: "sec small" }, "Reasoning makes the model review and improve its own summary 2 more times (3 passes in total). Slower, but more accurate and complete."));
+  } else if (w.step === 3) {
+    if (w.error) body.append(h("div", { class: "center", style: "margin-top:60px" }, h("p", {}, "⚠ " + w.error), h("button", { onclick: process }, "Try Again")));
+    else {
+      const stat = h("p", { class: "bold center", id: "wstatus" }, w.status), tip = h("p", { class: "sec small center" }, TIPS[w.tipI % TIPS.length]);
+      const tm = setInterval(() => { if (!tip.isConnected) return clearInterval(tm); w.tipI++; tip.textContent = TIPS[w.tipI % TIPS.length]; }, 6000);
+      body.append(h("div", { style: "margin-top:70px" }, h("div", { class: "spin" }), stat, tip));
+    }
+  } else {
+    const r = w.result;
+    body.append(h("p", { class: "bold" }, "✓ Automatically saved to Study Hall"), h("div", { class: "card" }, summaryEl(r.summary)));
+    foot.append(h("button", { class: "block", onclick: () => go("hall", { hallId: r.id, temp: false }) }, "Open Study Hall"),
+      h("button", { class: "out block", onclick: () => exportPdf(r) }, "Download PDF"), h("button", { class: "txt block", onclick: () => go("home") }, "Back to Home"));
+  }
+  if (w.step <= 2) { next = h("button", { class: "block", disabled: !can(), onclick: () => { if (w.step === 2) process(); else { w.step++; rerender(); } } }, w.step === 2 ? "Process Now" : "Next"); foot.append(next); }
+
+  async function process() {
+    w.error = null; w.step = 3; w.status = "Starting…"; w.abort = new AbortController(); rerender();
+    const my = w.abort;
+    try {
+      const sum = await summarize(w.images, subj(), w.prompt, LS.get("r_summary", false), s => { w.status = s; const e = $("#wstatus"); if (e) e.textContent = s; }, my.signal);
+      if (my.signal.aborted) return;
+      const now = Date.now();
+      const hall = { id: uid(), title: sum.title, subject: subj(), createdAt: now, updatedAt: now, summary: sum, photos: [...w.images], messages: [], prompt: w.prompt };
+      if (w.temp) { App.tempHall = hall; go("hall", { hallId: hall.id, temp: true }); return; }
+      await DB.put(hall); App.halls.push(hall); w.result = hall; w.step = 4; rerender();
+    } catch (e) { if (e.name === "AbortError" || my.signal.aborted) return; w.error = e.message; if (w.step === 3) rerender(); }
+  }
+  return h("div", { class: "screen" },
+    h("div", { class: "head" }, h("button", { class: "txt", onclick: back }, "‹ Back"), h("div", { class: "grow center" }, h("div", { class: "bold" }, titles[w.step]), h("div", { class: "small", style: "color:var(--" + (w.temp ? "orange" : "text2") + ")" }, "Step " + (w.step + 1) + " of 5" + (w.temp ? " · Temporary" : ""))), h("span", { style: "width:70px" })),
+    body, foot.childNodes.length ? foot : "");
+}
+
+/* ── Study Hall ── */
+function hallScreen() {
+  const temp = App.temp, hall = temp ? App.tempHall : App.halls.find(x => x.id === App.hallId);
+  if (!hall) { go("home"); return h("div"); }
+  let summaryOpen = true, responding = false, ctrl = null, streaming = "", lastPrompt = "";
+  const titleEl = h("div", { class: "bold", style: "overflow:hidden;white-space:nowrap;text-overflow:ellipsis" }, hall.title);
+  const sumBox = h("div"), msgBox = h("div"), live = h("div", { class: "bubble bot", hidden: true }), status = h("p", { class: "sec small", hidden: true }), errEl = h("p", { class: "err", hidden: true });
+  const scroller = h("div", { class: "scroll" }), send = h("button", {}, "Send");
+  const input = field("textarea", { rows: 1, placeholder: "Ask something about this material…", style: "resize:none;max-height:120px", oninput: e => { e.target.style.height = "auto"; e.target.style.height = Math.min(120, e.target.scrollHeight) + "px"; },
+    onkeydown: e => { if (e.key === "Enter" && !e.shiftKey && !matchMedia("(pointer:coarse)").matches) { e.preventDefault(); onSend(); } } });
+  const down = () => requestAnimationFrame(() => { scroller.scrollTop = scroller.scrollHeight; });
+
+  const fillSummary = () => { sumBox.innerHTML = ""; sumBox.append(h("div", { class: "row" }, h("h3", { class: "grow" }, "Summary"), h("button", { class: "txt", onclick: () => { summaryOpen = !summaryOpen; fillSummary(); } }, summaryOpen ? "Hide" : "Show")), summaryOpen ? h("div", { class: "card" }, summaryEl(hall.summary)) : ""); };
+  const fillMsgs = () => {
+    msgBox.innerHTML = "";
+    if (!hall.messages.length) msgBox.append(h("p", { class: "sec small" }, "Ask something about this material:"), ["Explain this in simpler words", "Give me 5 practice questions", "What are the most important points?"].map(s => h("button", { class: "out", style: "display:block;margin:6px 0", onclick: () => { input.value = s; input.focus(); } }, s)));
+    hall.messages.forEach(m => msgBox.append(h("div", { class: "bubble " + (m.user ? "user" : "bot") }, mdEl(m.text))));
+    down();
+  };
+  const setResp = on => { responding = on; send.textContent = on ? "Stop" : "Send"; if (!on) { live.hidden = true; status.hidden = true; } };
+  const save = async () => { hall.updatedAt = Date.now(); if (!temp) await DB.put(hall); };
+
+  async function onSend() {
+    if (responding) { ctrl && ctrl.abort(); return; }
+    const text = input.value.trim(); if (!text) return;
+    input.value = ""; input.style.height = "auto";
+    hall.messages.push({ user: true, text }); await save(); fillMsgs(); run(text);
+  }
+  async function run(prompt) {
+    lastPrompt = prompt; errEl.hidden = true; streaming = ""; setResp(true); status.textContent = "Thinking…"; status.hidden = false;
+    ctrl = new AbortController();
+    const msgs = hall.messages, hist = msgs.length && msgs[msgs.length - 1].user ? msgs.slice(0, -1) : msgs.slice();
+    try {
+      const reply = await chat(hall, prompt, hist, LS.get("r_chat", false), hall.photos,
+        p => { streaming = p; status.hidden = true; live.hidden = false; live.innerHTML = ""; live.append(mdEl(p)); down(); },
+        s => { status.textContent = "🧠 " + s; status.hidden = false; }, ctrl.signal);
+      finish(reply);
+    } catch (e) {
+      if (e.name === "AbortError") finish(streaming.trim() ? streaming.trim() + " …" : null);
+      else { errEl.textContent = e.message + "\n(Tap to try again)"; errEl.hidden = false; setResp(false); }
+    }
+  }
+  async function finish(text) { if (text && text.trim()) { hall.messages.push({ user: false, text }); await save(); fillMsgs(); } setResp(false); }
+  errEl.onclick = () => { if (!responding && lastPrompt) run(lastPrompt); };
+  send.onclick = onSend;
+
+  const leave = () => {
+    if (!temp) { go("home"); return; }
+    modal("Leave Temporary Study Hall?", "The summary and the whole conversation will be permanently erased. Export as PDF first if you want to keep it.",
+      [{ label: "Stay" }, { label: "Leave & Erase", cls: "danger", fn: () => { ctrl && ctrl.abort(); App.tempHall = null; go("home"); } }]);
+  };
+  const menuBtn = h("button", { class: "icon", "aria-label": "More", onclick: e => popMenu(e.currentTarget, [["Rename", () => renameHall(hall, () => { titleEl.textContent = hall.title; })], [temp ? "Leave & erase" : "Delete", () => temp ? leave() : deleteHall(hall).constructor && modalDeleteThenHome(hall)]]) }, "⋮");
+  fillSummary(); fillMsgs();
+  scroller.append(h("div", { class: "strip" }, hall.photos.map((p, i) => h("img", { src: p, alt: "Photo " + (i + 1), onclick: () => lightbox(hall.photos, i) }))), h("div", { style: "margin:10px 0" }, sumBox), h("h3", {}, "Chat"), msgBox, live, status, errEl);
+  return h("div", { class: "screen" },
+    h("div", { class: "head" }, h("button", { class: "icon", "aria-label": "Back", onclick: leave }, "‹"), h("div", { class: "grow" }, titleEl, h("div", { class: "small", style: "color:var(--" + (temp ? "orange" : "text2") + ")" }, hall.subject + (temp ? " · Temporary" : ""))),
+      h("button", { class: "txt", onclick: () => exportPdf(hall) }, "⬇ PDF"), menuBtn),
+    scroller,
+    h("div", { class: "foot" }, h("div", { style: "margin-bottom:8px" }, reasoningPill("r_chat")), h("div", { class: "row", style: "align-items:flex-end" }, input, send)));
+}
+function modalDeleteThenHome(hall) {
+  modal("Delete Study Hall?", "The photos, material, and all chat history will be permanently deleted.", [{ label: "Cancel" }, { label: "Delete", cls: "danger", fn: async () => { await DB.del(hall.id); App.halls = App.halls.filter(y => y !== hall); go("home"); } }]);
+}
+
+/* ═════════════ Mulai ═════════════ */
+render = () => {
+  document.querySelectorAll(".menu").forEach(m => m.remove());
+  const keepScroll = null;
+  root.innerHTML = "";
+  root.append(App.view === "wizard" ? wizardScreen() : App.view === "hall" ? hallScreen() : mainScreen());
+};
+window.addEventListener("beforeunload", e => { if (App.tempHall) { e.preventDefault(); e.returnValue = ""; } });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+(async () => {
+  applyTheme(); applyWake();
+  try {
+    await DB.open();
+    const cutoff = Date.now() - 30 * 864e5;
+    const all = await DB.all();
+    for (const x of all) if (x.updatedAt < cutoff) await DB.del(x.id);
+    App.halls = all.filter(x => x.updatedAt >= cutoff);
+  } catch (e) { toast("Storage unavailable: " + e.message); }
+  render();
+})();
+</script>
+</body>
+</html>
