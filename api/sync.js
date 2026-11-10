@@ -1,5 +1,5 @@
 /**
- * Vercel Serverless Function  →  /api/sync   (sinkronisasi cloud ke Vercel Blob, identitas = akun Google)
+ * Vercel Serverless Function  →  /api/sync   (sinkronisasi cloud ke Vercel Blob, identitas = Firebase Authentication)
  *
  * Persiapan:
  *   1. npm install @vercel/blob@^2.6.1        (tambahkan ke package.json)
@@ -7,16 +7,18 @@
  *      Vercel otomatis mengisi token (di project ini: SMRY_READ_WRITE_TOKEN).
  *
  * Environment Variables:
- *   GOOGLE_CLIENT_ID        OAuth *Web* client ID Google. Boleh lebih dari satu, pisahkan dengan koma.
+ *   FIREBASE_PROJECT_ID     Project ID Firebase (Project settings → General). Dipakai untuk memverifikasi token.
+ *   FIREBASE_API_KEY        Web API Key Firebase (Project settings → General). Memang publik; dikirim ke klien lewat action "config".
+ *   FIREBASE_AUTH_DOMAIN    (opsional) default <FIREBASE_PROJECT_ID>.firebaseapp.com
  *   SMRY_READ_WRITE_TOKEN   Token Blob (nama mengikuti awalan yang dipilih saat store dihubungkan ke project;
  *                           BLOB_READ_WRITE_TOKEN juga dikenali). SMRY_STORE_ID dan SMRY_WEBHOOK_PUBLIC_KEY tidak dipakai.
  *
- * Keamanan: klien (web & Android) TIDAK pernah memegang token Blob. Klien mengirim Google ID token
+ * Keamanan: klien (web & Android) TIDAK pernah memegang token Blob. Klien mengirim Firebase ID token
  * (Authorization: Bearer ...). Server memverifikasi tanda tangan token, lalu hanya mengizinkan akses ke
- * folder  u/<google sub>/  milik akun tersebut. Store bersifat private, jadi file tidak bisa dibuka lewat URL.
+ * folder  u/<Firebase uid>/  milik akun tersebut. Store bersifat private, jadi file tidak bisa dibuka lewat URL.
  *
  * Semua request: POST JSON { action, ... }. Balasan: JSON. 
- *   config                                  (tanpa login) → { clientId }
+ *   config                                  (tanpa login) → { firebase: { apiKey, authDomain, projectId } }
  *   manifest                                → { halls: { id: { updatedAt, deleted, photos } } }
  *   get      { id }                         → { hall }
  *   getPhoto { id, n }                      → { data: "data:image/jpeg;base64,..." }
@@ -72,35 +74,40 @@ async function blobDel(pathname) {
   catch (e) { if (!isNotFound(e)) throw new HttpError(502, "Could not delete from Vercel Blob."); }
 }
 
-/* ═════════════════════ Verifikasi Google ID token ═════════════════════ */
+/* ═════════════════════ Verifikasi Firebase ID token ═════════════════════ */
 
-let certCache = { at: 0, keys: [] };
-async function googleKeys() {
-  if (Date.now() - certCache.at < 3600_000 && certCache.keys.length) return certCache.keys;
-  const r = await fetch("https://www.googleapis.com/oauth2/v3/certs");
-  if (!r.ok) throw new HttpError(502, "Could not load Google signing keys.");
-  certCache = { at: Date.now(), keys: (await r.json()).keys || [] };
-  return certCache.keys;
+const FIREBASE_JWK = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
+let keyCache = { at: 0, keys: [] };
+async function firebaseKeys(force) {
+  const age = Date.now() - keyCache.at;
+  if (keyCache.keys.length && (force ? age < 60_000 : age < 3600_000)) return keyCache.keys;
+  const r = await fetch(FIREBASE_JWK);
+  if (!r.ok) throw new HttpError(502, "Could not load Firebase signing keys.");
+  keyCache = { at: Date.now(), keys: (await r.json()).keys || [] };
+  return keyCache.keys;
 }
 const b64u = (s) => Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64");
 
 async function verifyIdToken(token) {
-  const audiences = (process.env.GOOGLE_CLIENT_ID || "").split(",").map((s) => s.trim()).filter(Boolean);
-  if (!audiences.length) throw new HttpError(500, "Server is missing GOOGLE_CLIENT_ID.");
+  const projectId = (process.env.FIREBASE_PROJECT_ID || "").trim();
+  if (!projectId) throw new HttpError(500, "Server is missing FIREBASE_PROJECT_ID.");
   const parts = String(token || "").split(".");
   if (parts.length !== 3) throw new HttpError(401, "Not signed in.");
   let header, payload;
   try { header = JSON.parse(b64u(parts[0]).toString()); payload = JSON.parse(b64u(parts[1]).toString()); }
   catch { throw new HttpError(401, "Invalid token."); }
   if (header.alg !== "RS256") throw new HttpError(401, "Invalid token.");
-  const jwk = (await googleKeys()).find((k) => k.kid === header.kid);
+  let jwk = (await firebaseKeys(false)).find((k) => k.kid === header.kid);
+  if (!jwk) jwk = (await firebaseKeys(true)).find((k) => k.kid === header.kid); // kunci bisa dirotasi
   if (!jwk) throw new HttpError(401, "Unknown signing key. Sign in again.");
   const ok = crypto.verify("RSA-SHA256", Buffer.from(parts[0] + "." + parts[1]), crypto.createPublicKey({ key: jwk, format: "jwk" }), b64u(parts[2]));
   if (!ok) throw new HttpError(401, "Invalid token.");
-  if (!["accounts.google.com", "https://accounts.google.com"].includes(payload.iss)) throw new HttpError(401, "Invalid token issuer.");
-  if (!audiences.includes(payload.aud)) throw new HttpError(401, "Token is for a different app.");
-  if (!payload.exp || payload.exp * 1000 < Date.now()) throw new HttpError(401, "Session expired. Sign in again.");
-  if (!payload.sub || !/^\d{5,40}$/.test(payload.sub)) throw new HttpError(401, "Invalid token.");
+  if (payload.iss !== `https://securetoken.google.com/${projectId}`) throw new HttpError(401, "Invalid token issuer.");
+  if (payload.aud !== projectId) throw new HttpError(401, "Token is for a different app.");
+  const now = Date.now();
+  if (!payload.exp || payload.exp * 1000 < now) throw new HttpError(401, "Session expired. Sign in again.");
+  if (!payload.iat || payload.iat * 1000 > now + 60_000) throw new HttpError(401, "Invalid token.");
+  if (typeof payload.sub !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(payload.sub)) throw new HttpError(401, "Invalid token.");
   return { sub: payload.sub, email: payload.email || "" };
 }
 
@@ -192,7 +199,10 @@ async function handler(req, res) {
     if (!body || typeof body !== "object") throw new HttpError(400, "Invalid request body.");
 
     if (body.action === "config") {
-      return send(200, { clientId: (process.env.GOOGLE_CLIENT_ID || "").split(",")[0].trim() });
+      const projectId = (process.env.FIREBASE_PROJECT_ID || "").trim(), apiKey = (process.env.FIREBASE_API_KEY || "").trim();
+      if (!projectId || !apiKey) throw new HttpError(500, "Server is missing FIREBASE_PROJECT_ID or FIREBASE_API_KEY.");
+      const authDomain = (process.env.FIREBASE_AUTH_DOMAIN || "").trim() || `${projectId}.firebaseapp.com`;
+      return send(200, { firebase: { apiKey, authDomain, projectId } });
     }
     const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || "");
     const user = await verifyIdToken(m && m[1]);
