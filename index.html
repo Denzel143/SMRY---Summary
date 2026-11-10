@@ -146,63 +146,77 @@ const DB = {
 };
 
 
-/* ═════════════ Cloud sync (Vercel Blob lewat /api/sync · identitas = akun Google) ═════════════ */
+/* ═════════════ Cloud sync (Vercel Blob lewat /api/sync · identitas = Firebase Authentication) ═════════════ */
 const SYNC = "/api/sync";
 let settingsFill = null;
 const Cloud = {
-  token: LS.get("cloudToken", ""), user: LS.get("cloudUser", null),
-  last: LS.get("cloudLast", 0), running: false, status: "", timer: null, waiter: null, gisReady: null, clientId: null,
+  token: "", user: LS.get("cloudUser", null),
+  last: LS.get("cloudLast", 0), running: false, status: "", timer: null, fbReady: null, auth: null, fa: null,
   signedIn() { return !!this.user; },
-  exp(t) { try { return JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).exp * 1000; } catch { return 0; } },
-  valid() { return this.token && this.exp(this.token) - Date.now() > 120000; },
   tombs() { return LS.get("cloudTombs", {}); },
   tomb(id) { const t = this.tombs(); t[id] = Date.now(); LS.set("cloudTombs", t); },
   setStatus(msg, clearAfter) {
     this.status = msg; const e = $("#subtitle"); if (e) e.textContent = msg || "Summarize your lessons";
     if (msg && clearAfter) setTimeout(() => { if (this.status === msg) this.setStatus(""); }, clearAfter);
   },
-  /* Google Identity Services */
-  async getClientId() {
-    if (this.clientId) return this.clientId;
-    const r = await fetch(SYNC, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "config" }) });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.clientId) throw new Error("Cloud sync is not configured on the server (GOOGLE_CLIENT_ID).");
-    return (this.clientId = j.clientId);
+  /* Firebase Authentication (SDK dimuat dari CDN gstatic saat pertama dibutuhkan; konfigurasi diambil dari server) */
+  initFirebase() {
+    if (this.fbReady) return this.fbReady;
+    return (this.fbReady = (async () => {
+      const r = await fetch(SYNC, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "config" }) });
+      const j = await r.json().catch(() => ({}));
+      const cfg = j.firebase;
+      if (!r.ok || !cfg || !cfg.apiKey || !cfg.projectId) throw new Error(j.error || "Cloud sync is not configured on the server (FIREBASE_PROJECT_ID, FIREBASE_API_KEY).");
+      const V = "https://www.gstatic.com/firebasejs/10.14.1/";
+      let app, fa;
+      try { [app, fa] = await Promise.all([import(V + "firebase-app.js"), import(V + "firebase-auth.js")]); }
+      catch { throw new Error("Could not load Firebase sign-in."); }
+      this.fa = fa; this.auth = fa.getAuth(app.initializeApp(cfg));
+      await this.auth.authStateReady();
+    })().catch(e => { this.fbReady = null; throw e; }));
   },
-  initGIS() {
-    if (this.gisReady) return this.gisReady;
-    return (this.gisReady = (async () => {
-      const id = await this.getClientId();
-      if (!window.google || !google.accounts) await new Promise((res, rej) => { const sc = h("script", { src: "https://accounts.google.com/gsi/client", async: true, onload: res, onerror: () => rej(new Error("Could not load Google sign-in.")) }); document.head.append(sc); });
-      google.accounts.id.initialize({ client_id: id, callback: r => this.onCredential(r), auto_select: false, cancel_on_tap_outside: true });
-    })().catch(e => { this.gisReady = null; throw e; }));
+  authError(e) {
+    const c = (e && e.code) || "";
+    if (c === "auth/popup-closed-by-user" || c === "auth/cancelled-popup-request") return "Sign-in cancelled.";
+    if (c === "auth/popup-blocked") return "The sign-in popup was blocked. Allow popups for this site and try again.";
+    if (c === "auth/unauthorized-domain") return "This domain is not authorized in Firebase (Authentication → Settings → Authorized domains).";
+    if (c === "auth/operation-not-allowed") return "Google sign-in is not enabled in Firebase (Authentication → Sign-in method).";
+    return (e && e.message) || "Sign-in failed.";
   },
-  onCredential(resp) {
-    const t = resp && resp.credential; if (!t) return;
-    let p = {}; try { p = JSON.parse(decodeURIComponent(escape(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))))); } catch {}
-    this.token = t; this.user = { email: p.email || "", name: p.name || "" };
-    LS.set("cloudToken", t); LS.set("cloudUser", this.user);
-    if (this.waiter) { this.waiter.res(t); this.waiter = null; }
-    else { if (settingsFill) settingsFill(); this.sync(); }
+  async signIn() {
+    if (!this.auth) await this.initFirebase();
+    const prov = new this.fa.GoogleAuthProvider(); prov.setCustomParameters({ prompt: "select_account" });
+    const r = await this.fa.signInWithPopup(this.auth, prov);
+    this.token = await r.user.getIdToken();
+    this.user = { email: r.user.email || "", name: r.user.displayName || "" };
+    LS.set("cloudUser", this.user);
+    if (settingsFill) settingsFill();
+    this.sync();
   },
-  async renderButton(div) {
-    try { await this.initGIS(); google.accounts.id.renderButton(div, { theme: "filled_blue", size: "large", text: "signin_with", shape: "pill" }); }
-    catch (e) { div.textContent = e.message; div.className = "err"; }
+  renderButton(div) {
+    const msg = h("p", { class: "err small" });
+    const btn = h("button", { class: "out", disabled: true, onclick: async () => {
+      btn.disabled = true; msg.textContent = "";
+      try { await this.signIn(); } catch (e) { btn.disabled = false; msg.textContent = this.authError(e); }
+    } }, "Sign in with Google");
+    div.append(btn, msg);
+    // Dimuat dulu supaya popup login langsung terbuka saat tombol diklik (tidak diblokir browser).
+    this.initFirebase().then(() => { btn.disabled = false; }, e => { msg.textContent = e.message; });
   },
   async ensureToken() {
-    if (this.valid()) return this.token;
-    await this.initGIS();
-    return await new Promise((res, rej) => {
-      const fail = () => { this.waiter = null; rej(new Error("Session expired. Open Settings and sign in again.")); };
-      const to = setTimeout(fail, 8000);
-      this.waiter = { res: t => { clearTimeout(to); res(t); }, rej };
-      google.accounts.id.prompt(n => { if (n.isNotDisplayed() || n.isSkippedMoment()) { clearTimeout(to); fail(); } });
-    });
+    await this.initFirebase();
+    const u = this.auth.currentUser;
+    if (!u) {
+      this.token = ""; this.user = null; LS.set("cloudUser", null);
+      if (settingsFill) settingsFill();
+      throw new Error("Session expired. Open Settings and sign in again.");
+    }
+    return (this.token = await u.getIdToken()); // diperbarui otomatis oleh Firebase bila hampir kedaluwarsa
   },
   signOut() {
-    try { google.accounts.id.disableAutoSelect(); } catch {}
+    try { if (this.auth) this.fa.signOut(this.auth); } catch {}
     this.token = ""; this.user = null; this.last = 0;
-    LS.set("cloudToken", ""); LS.set("cloudUser", null); LS.set("cloudLast", 0);
+    LS.set("cloudUser", null); LS.set("cloudLast", 0);
     if (settingsFill) settingsFill();
   },
   /* Jadwalkan sync (debounce). Tidak jalan saat Study Hall sedang terbuka supaya data yang sedang diedit tidak tertimpa. */
