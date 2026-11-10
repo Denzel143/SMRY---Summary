@@ -141,8 +141,141 @@ const DB = {
   },
   tx(mode, fn) { return new Promise((res, rej) => { const t = this.db.transaction("halls", mode); const rq = fn(t.objectStore("halls")); t.oncomplete = () => res(rq && rq.result); t.onerror = () => rej(t.error); }); },
   all() { return this.tx("readonly", s => s.getAll()); },
-  put(x) { return this.tx("readwrite", s => s.put(x)); },
-  del(id) { return this.tx("readwrite", s => s.delete(id)); }
+  put(x, silent) { return this.tx("readwrite", s => s.put(x)).then(r => { if (!silent) Cloud.schedule(); return r; }); },
+  del(id, silent) { return this.tx("readwrite", s => s.delete(id)).then(r => { if (!silent) Cloud.schedule(); return r; }); }
+};
+
+
+/* ═════════════ Cloud sync (Vercel Blob lewat /api/sync · identitas = akun Google) ═════════════ */
+const SYNC = "/api/sync";
+let settingsFill = null;
+const Cloud = {
+  token: LS.get("cloudToken", ""), user: LS.get("cloudUser", null),
+  last: LS.get("cloudLast", 0), running: false, status: "", timer: null, waiter: null, gisReady: null, clientId: null,
+  signedIn() { return !!this.user; },
+  exp(t) { try { return JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).exp * 1000; } catch { return 0; } },
+  valid() { return this.token && this.exp(this.token) - Date.now() > 120000; },
+  tombs() { return LS.get("cloudTombs", {}); },
+  tomb(id) { const t = this.tombs(); t[id] = Date.now(); LS.set("cloudTombs", t); },
+  setStatus(msg, clearAfter) {
+    this.status = msg; const e = $("#subtitle"); if (e) e.textContent = msg || "Summarize your lessons";
+    if (msg && clearAfter) setTimeout(() => { if (this.status === msg) this.setStatus(""); }, clearAfter);
+  },
+  /* Google Identity Services */
+  async getClientId() {
+    if (this.clientId) return this.clientId;
+    const r = await fetch(SYNC, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "config" }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.clientId) throw new Error("Cloud sync is not configured on the server (GOOGLE_CLIENT_ID).");
+    return (this.clientId = j.clientId);
+  },
+  initGIS() {
+    if (this.gisReady) return this.gisReady;
+    return (this.gisReady = (async () => {
+      const id = await this.getClientId();
+      if (!window.google || !google.accounts) await new Promise((res, rej) => { const sc = h("script", { src: "https://accounts.google.com/gsi/client", async: true, onload: res, onerror: () => rej(new Error("Could not load Google sign-in.")) }); document.head.append(sc); });
+      google.accounts.id.initialize({ client_id: id, callback: r => this.onCredential(r), auto_select: false, cancel_on_tap_outside: true });
+    })().catch(e => { this.gisReady = null; throw e; }));
+  },
+  onCredential(resp) {
+    const t = resp && resp.credential; if (!t) return;
+    let p = {}; try { p = JSON.parse(decodeURIComponent(escape(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))))); } catch {}
+    this.token = t; this.user = { email: p.email || "", name: p.name || "" };
+    LS.set("cloudToken", t); LS.set("cloudUser", this.user);
+    if (this.waiter) { this.waiter.res(t); this.waiter = null; }
+    else { if (settingsFill) settingsFill(); this.sync(); }
+  },
+  async renderButton(div) {
+    try { await this.initGIS(); google.accounts.id.renderButton(div, { theme: "filled_blue", size: "large", text: "signin_with", shape: "pill" }); }
+    catch (e) { div.textContent = e.message; div.className = "err"; }
+  },
+  async ensureToken() {
+    if (this.valid()) return this.token;
+    await this.initGIS();
+    return await new Promise((res, rej) => {
+      const fail = () => { this.waiter = null; rej(new Error("Session expired. Open Settings and sign in again.")); };
+      const to = setTimeout(fail, 8000);
+      this.waiter = { res: t => { clearTimeout(to); res(t); }, rej };
+      google.accounts.id.prompt(n => { if (n.isNotDisplayed() || n.isSkippedMoment()) { clearTimeout(to); fail(); } });
+    });
+  },
+  signOut() {
+    try { google.accounts.id.disableAutoSelect(); } catch {}
+    this.token = ""; this.user = null; this.last = 0;
+    LS.set("cloudToken", ""); LS.set("cloudUser", null); LS.set("cloudLast", 0);
+    if (settingsFill) settingsFill();
+  },
+  /* Jadwalkan sync (debounce). Tidak jalan saat Study Hall sedang terbuka supaya data yang sedang diedit tidak tertimpa. */
+  schedule() {
+    if (!this.signedIn()) return;
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => { if (App.view === "hall") this.schedule(); else this.sync(); }, 3000);
+  },
+  async api(body) {
+    let r;
+    try { r = await fetch(SYNC, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + this.token }, body: JSON.stringify(body) }); }
+    catch { throw new Error("Cannot reach the sync server."); }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { if (r.status === 401) this.token = ""; throw new Error(j.error || "Sync failed (HTTP " + r.status + ")."); }
+    return j;
+  },
+  toCloud(x) {
+    return { id: x.id, title: x.title, subject: x.subject, userPrompt: x.prompt || "", createdAt: x.createdAt, updatedAt: x.updatedAt, summary: x.summary,
+      messages: x.messages.map(m => ({ user: !!m.user, text: m.text, createdAt: m.createdAt || x.updatedAt })) };
+  },
+  fromCloud(j, photos) {
+    const s = j.summary || {};
+    return { id: j.id, title: j.title || "", subject: j.subject || "", prompt: j.userPrompt || "", createdAt: j.createdAt || Date.now(), updatedAt: j.updatedAt || Date.now(),
+      summary: { ...s, title: s.title || j.title || "", summary: s.summary || "", keyPoints: s.keyPoints || [], explanation: s.explanation || "", legend: s.legend || [] },
+      photos, messages: (j.messages || []).map(m => ({ user: !!m.user, text: m.text || "", createdAt: m.createdAt || 0 })) };
+  },
+  async push(x, withPhotos) {
+    if (withPhotos) for (let i = 0; i < x.photos.length; i++) await this.api({ action: "putPhoto", id: x.id, n: i, data: x.photos[i] });
+    await this.api({ action: "put", hall: this.toCloud(x), photos: x.photos.length });
+  },
+  async pull(id, n, existing) {
+    const j = (await this.api({ action: "get", id })).hall;
+    let photos;
+    if (existing && existing.photos.length === n) photos = existing.photos;
+    else { photos = []; for (let i = 0; i < n; i++) photos.push((await this.api({ action: "getPhoto", id, n: i })).data); }
+    await DB.put(this.fromCloud(j, photos), true);
+  },
+  async sync() {
+    if (this.running || !this.signedIn()) return;
+    this.running = true; this.setStatus("☁ Syncing…");
+    let msg = "", ok = true;
+    try {
+      await this.ensureToken();
+      const manifest = (await this.api({ action: "manifest" })).halls || {};
+      let up = 0, down = 0, removed = 0;
+      const tombs = this.tombs();
+      for (const [id, t] of Object.entries(tombs)) {
+        const r = manifest[id];
+        if (!(r && r.deleted && r.updatedAt >= t)) {
+          const resp = await this.api({ action: "delete", id, updatedAt: t });
+          manifest[id] = resp.applied ? { updatedAt: t, deleted: true, photos: 0 } : (resp.remote || manifest[id]);
+        }
+        delete tombs[id]; LS.set("cloudTombs", tombs);
+      }
+      const locals = await DB.all(), byId = new Map(locals.map(x => [x.id, x]));
+      for (const x of locals) {
+        const r = manifest[x.id];
+        if (!r) { await this.push(x, true); up++; }
+        else if (r.deleted) { if (r.updatedAt >= x.updatedAt) { await DB.del(x.id, true); removed++; } else { await this.push(x, true); up++; } }
+        else if (x.updatedAt > r.updatedAt) { await this.push(x, (r.photos || 0) < x.photos.length); up++; }
+        else if (r.updatedAt > x.updatedAt) { await this.pull(x.id, r.photos || 0, x); down++; }
+      }
+      for (const [id, r] of Object.entries(manifest)) if (!r.deleted && !byId.has(id)) { await this.pull(id, r.photos || 0, null); down++; }
+      this.last = Date.now(); LS.set("cloudLast", this.last);
+      App.halls = await DB.all();
+      msg = up + down + removed === 0 ? "Already in sync." : "Synced: " + up + " uploaded, " + down + " downloaded" + (removed ? ", " + removed + " removed" : "") + ".";
+    } catch (e) { ok = false; msg = e.message; }
+    this.running = false;
+    this.setStatus("☁ " + msg, ok ? 4000 : 9000);
+    Cloud.lastMessage = (ok ? "" : "⚠ ") + msg;
+    if (settingsFill) settingsFill();
+    if (App.view === "home") rerender();
+  }
 };
 
 /* ═════════════ Model data ═════════════ */
@@ -448,7 +581,7 @@ const App = { halls: [], tempHall: null, tab: "home", query: "", overall: LS.get
 const root = $("#app");
 let render = () => {};
 function rerender() { render(); }
-function go(view, extra) { App.view = view; Object.assign(App, extra || {}); render(); }
+function go(view, extra) { App.view = view; Object.assign(App, extra || {}); render(); if (view === "home") Cloud.schedule(); }
 function applyTheme() {
   const pref = LS.get("appearance", "system");
   const dark = pref === "dark" || (pref === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
@@ -462,11 +595,27 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 function openSettings() {
   const sel = h("select", { onchange: e => { LS.set("appearance", e.target.value); applyTheme(); } }, [["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([v, l]) => h("option", { value: v, selected: LS.get("appearance", "system") === v }, l)));
   const keep = h("input", { type: "checkbox", checked: LS.get("keepOn", false), style: "width:20px;height:20px", onchange: e => { LS.set("keepOn", e.target.checked); applyWake(); } });
+  const cloudBox = h("div");
+  const fill = () => {
+    cloudBox.innerHTML = "";
+    if (!Cloud.signedIn()) {
+      const gb = h("div", { style: "margin:8px 0;min-height:44px" });
+      cloudBox.append(h("p", { class: "small sec" }, "Sign in with your Google account to back up your Study Halls and sync them across devices."), gb);
+      Cloud.renderButton(gb);
+    } else {
+      cloudBox.append(h("p", { class: "bold" }, "Signed in as " + (Cloud.user.name ? Cloud.user.name + " (" + Cloud.user.email + ")" : Cloud.user.email)),
+        h("p", { class: "small sec" }, Cloud.last ? "Last sync: " + fmtDate(Cloud.last) : "Not synced yet."),
+        h("div", { class: "row" }, h("button", { class: "out", disabled: Cloud.running, onclick: () => Cloud.sync() }, Cloud.running ? "Syncing…" : "Sync now"), h("button", { class: "txt", onclick: () => Cloud.signOut() }, "Sign out")));
+    }
+    if (Cloud.lastMessage) cloudBox.append(h("p", { class: "small sec" }, Cloud.lastMessage));
+  };
+  settingsFill = fill; fill();
   const content = h("div", {}, h("p", { class: "bold" }, "Appearance"), sel,
     h("label", { class: "row", style: "margin-top:12px" }, keep, "Keep screen on"),
     h("p", { class: "small sec", style: "margin-top:12px" }, "Powered by Gemini. An internet connection is required."),
-    h("p", { class: "small sec" }, "Study Halls older than 30 days are deleted automatically."));
-  modal("Settings", null, [{ label: "Done", cls: "" }], content);
+    h("p", { class: "bold", style: "margin-top:16px" }, "Cloud sync"), cloudBox,
+    h("p", { class: "small sec", style: "margin-top:12px" }, "Study Halls older than 30 days are deleted automatically (paused while cloud sync is signed in)."));
+  modal("Settings", null, [{ label: "Done", cls: "", fn: () => { settingsFill = null; } }], content);
 }
 
 /* ── Home ── */
@@ -493,7 +642,7 @@ function renameHall(x, after) {
   modal("Rename Study Hall", null, [{ label: "Cancel" }, { label: "Save", cls: "", fn: async () => { const v = inp.value.trim(); if (v) { x.title = v; x.updatedAt = Date.now(); if (App.tempHall !== x) await DB.put(x); } after ? after() : rerender(); } }], inp);
 }
 function deleteHall(x) {
-  modal('Delete "' + x.title + '"?', "The photos, material, and all chat history inside will be permanently deleted.", [{ label: "Cancel" }, { label: "Delete", cls: "danger", fn: async () => { await DB.del(x.id); App.halls = App.halls.filter(y => y !== x); rerender(); } }]);
+  modal('Delete "' + x.title + '"?', "The photos, material, and all chat history inside will be permanently deleted.", [{ label: "Cancel" }, { label: "Delete", cls: "danger", fn: async () => { Cloud.tomb(x.id); await DB.del(x.id); App.halls = App.halls.filter(y => y !== x); rerender(); } }]);
 }
 
 /* ── Ringkasan keseluruhan ── */
@@ -529,7 +678,7 @@ function mainScreen() {
   const newBtn = () => modal("New Study Hall", "Permanent is saved on Home. Temporary is erased as soon as you leave the room.",
     [{ label: "Cancel" }, { label: "Temporary", cls: "out", fn: () => startWizard(true) }, { label: "Permanent", cls: "", fn: () => startWizard(false) }]);
   return h("div", { class: "screen" },
-    h("div", { class: "row pad", style: "padding-bottom:0" }, h("div", { class: "grow" }, h("h1", {}, "SMRY"), h("div", { class: "sec" }, "Summarize your lessons")), h("button", { class: "icon", "aria-label": "Settings", onclick: openSettings }, "⚙")),
+    h("div", { class: "row pad", style: "padding-bottom:0" }, h("div", { class: "grow" }, h("h1", {}, "SMRY"), h("div", { class: "sec", id: "subtitle" }, Cloud.status || "Summarize your lessons")), h("button", { class: "icon", "aria-label": "Settings", onclick: openSettings }, "⚙")),
     h("div", { class: "tabs" }, tab("home", "Home"), tab("summary", "Summary")), body,
     App.tab === "home" ? h("button", { class: "fab", "aria-label": "Create new Study Hall", onclick: newBtn }, "+") : null);
 }
@@ -626,7 +775,7 @@ function hallScreen() {
     if (responding) { ctrl && ctrl.abort(); return; }
     const text = input.value.trim(); if (!text) return;
     input.value = ""; input.style.height = "auto";
-    hall.messages.push({ user: true, text }); await save(); fillMsgs(); run(text);
+    hall.messages.push({ user: true, text, createdAt: Date.now() }); await save(); fillMsgs(); run(text);
   }
   async function run(prompt) {
     lastPrompt = prompt; errEl.hidden = true; streaming = ""; setResp(true); status.textContent = "Thinking…"; status.hidden = false;
@@ -642,7 +791,7 @@ function hallScreen() {
       else { errEl.textContent = e.message + "\n(Tap to try again)"; errEl.hidden = false; setResp(false); }
     }
   }
-  async function finish(text) { if (text && text.trim()) { hall.messages.push({ user: false, text }); await save(); fillMsgs(); } setResp(false); }
+  async function finish(text) { if (text && text.trim()) { hall.messages.push({ user: false, text, createdAt: Date.now() }); await save(); fillMsgs(); } setResp(false); }
   errEl.onclick = () => { if (!responding && lastPrompt) run(lastPrompt); };
   send.onclick = onSend;
 
@@ -661,7 +810,7 @@ function hallScreen() {
     h("div", { class: "foot" }, h("div", { style: "margin-bottom:8px" }, reasoningPill("r_chat")), h("div", { class: "row", style: "align-items:flex-end" }, input, send)));
 }
 function modalDeleteThenHome(hall) {
-  modal("Delete Study Hall?", "The photos, material, and all chat history will be permanently deleted.", [{ label: "Cancel" }, { label: "Delete", cls: "danger", fn: async () => { await DB.del(hall.id); App.halls = App.halls.filter(y => y !== hall); go("home"); } }]);
+  modal("Delete Study Hall?", "The photos, material, and all chat history will be permanently deleted.", [{ label: "Cancel" }, { label: "Delete", cls: "danger", fn: async () => { Cloud.tomb(hall.id); await DB.del(hall.id); App.halls = App.halls.filter(y => y !== hall); go("home"); } }]);
 }
 
 /* ═════════════ Mulai ═════════════ */
@@ -679,11 +828,13 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme
     await DB.open();
     const cutoff = Date.now() - 30 * 864e5;
     const all = await DB.all();
-    for (const x of all) if (x.updatedAt < cutoff) await DB.del(x.id);
-    App.halls = all.filter(x => x.updatedAt >= cutoff);
+    if (Cloud.signedIn()) App.halls = all; // dengan cloud sync, penghapusan otomatis 30 hari dijeda
+    else { for (const x of all) if (x.updatedAt < cutoff) await DB.del(x.id, true); App.halls = all.filter(x => x.updatedAt >= cutoff); }
   } catch (e) { toast("Storage unavailable: " + e.message); }
   render();
+  if (Cloud.signedIn()) Cloud.sync();
 })();
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Cloud.signedIn() && App.view !== "hall" && Date.now() - Cloud.last > 120000) Cloud.sync(); });
 </script>
 </body>
 </html>
