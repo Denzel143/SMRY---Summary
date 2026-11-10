@@ -151,7 +151,7 @@ const SYNC = "/api/sync";
 let settingsFill = null;
 const Cloud = {
   token: "", user: LS.get("cloudUser", null),
-  last: LS.get("cloudLast", 0), running: false, status: "", timer: null, fbReady: null, auth: null, fa: null,
+  last: LS.get("cloudLast", 0), running: false, again: false, status: "", timer: null, fbReady: null, auth: null, fa: null,
   signedIn() { return !!this.user; },
   tombs() { return LS.get("cloudTombs", {}); },
   tomb(id) { const t = this.tombs(); t[id] = Date.now(); LS.set("cloudTombs", t); },
@@ -223,7 +223,7 @@ const Cloud = {
   schedule() {
     if (!this.signedIn()) return;
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => { if (App.view === "hall") this.schedule(); else this.sync(); }, 3000);
+    this.timer = setTimeout(() => { this.timer = null; this.sync(); }, 2500); // setelah perubahan terakhir selesai disimpan
   },
   async api(body) {
     let r;
@@ -254,10 +254,12 @@ const Cloud = {
     else { photos = []; for (let i = 0; i < n; i++) photos.push((await this.api({ action: "getPhoto", id, n: i })).data); }
     await DB.put(this.fromCloud(j, photos), true);
   },
-  async sync() {
-    if (this.running || !this.signedIn()) return;
-    this.running = true; this.setStatus("☁ Syncing…");
-    let msg = "", ok = true;
+  async sync(quiet) {
+    if (!this.signedIn()) return;
+    if (this.running) { this.again = true; return; } // ada perubahan saat sync berjalan → ulangi setelah selesai
+    this.running = true; if (!quiet) this.setStatus("☁ Syncing…");
+    let msg = "", ok = true, changed = true;
+    const openId = App.view === "hall" && !App.temp ? App.hallId : null; // hall yang sedang dibuka tidak ditimpa dari cloud
     try {
       await this.ensureToken();
       const manifest = (await this.api({ action: "manifest" })).halls || {};
@@ -275,20 +277,24 @@ const Cloud = {
       for (const x of locals) {
         const r = manifest[x.id];
         if (!r) { await this.push(x, true); up++; }
-        else if (r.deleted) { if (r.updatedAt >= x.updatedAt) { await DB.del(x.id, true); removed++; } else { await this.push(x, true); up++; } }
+        else if (r.deleted) { if (r.updatedAt >= x.updatedAt) { if (x.id !== openId) { await DB.del(x.id, true); removed++; } } else { await this.push(x, true); up++; } }
         else if (x.updatedAt > r.updatedAt) { await this.push(x, (r.photos || 0) < x.photos.length); up++; }
-        else if (r.updatedAt > x.updatedAt) { await this.pull(x.id, r.photos || 0, x); down++; }
+        else if (r.updatedAt > x.updatedAt) { if (x.id !== openId) { await this.pull(x.id, r.photos || 0, x); down++; } }
       }
       for (const [id, r] of Object.entries(manifest)) if (!r.deleted && !byId.has(id)) { await this.pull(id, r.photos || 0, null); down++; }
       this.last = Date.now(); LS.set("cloudLast", this.last);
-      App.halls = await DB.all();
+      if (App.view === "home") App.halls = await DB.all(); // di layar lain daftar disegarkan saat kembali ke home
+      changed = up + down + removed > 0;
       msg = up + down + removed === 0 ? "Already in sync." : "Synced: " + up + " uploaded, " + down + " downloaded" + (removed ? ", " + removed + " removed" : "") + ".";
     } catch (e) { ok = false; msg = e.message; }
     this.running = false;
-    this.setStatus("☁ " + msg, ok ? 4000 : 9000);
-    Cloud.lastMessage = (ok ? "" : "⚠ ") + msg;
-    if (settingsFill) settingsFill();
-    if (App.view === "home") rerender();
+    if (!(quiet && ok && !changed)) { // pengecekan otomatis yang tidak mengubah apa pun: diam, tanpa render ulang
+      this.setStatus("☁ " + msg, ok ? 4000 : 9000);
+      Cloud.lastMessage = (ok ? "" : "⚠ ") + msg;
+      if (settingsFill) settingsFill();
+      if (App.view === "home") rerender();
+    }
+    if (this.again) { this.again = false; if (ok) this.schedule(); }
   }
 };
 
@@ -848,7 +854,16 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme
   render();
   if (Cloud.signedIn()) Cloud.sync();
 })();
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Cloud.signedIn() && App.view !== "hall" && Date.now() - Cloud.last > 120000) Cloud.sync(); });
+/* Sync otomatis dua arah: tiap perubahan selesai (lihat DB.put/del → Cloud.schedule), saat tab kembali aktif / online,
+   dan cek berkala tiap SYNC_POLL_MS untuk mengambil perubahan dari perangkat lain. */
+const SYNC_POLL_MS = 60000;
+setInterval(() => { if (document.visibilityState === "visible" && Cloud.signedIn() && navigator.onLine !== false) Cloud.sync(true); }, SYNC_POLL_MS);
+window.addEventListener("online", () => { if (Cloud.signedIn()) Cloud.sync(); });
+document.addEventListener("visibilitychange", () => {
+  if (!Cloud.signedIn()) return;
+  if (document.visibilityState === "visible") { if (Date.now() - Cloud.last > 15000) Cloud.sync(true); }
+  else if (Cloud.timer) { clearTimeout(Cloud.timer); Cloud.timer = null; Cloud.sync(true); } // kirim perubahan tertunda sebelum tab ditinggalkan
+});
 </script>
 </body>
 </html>
