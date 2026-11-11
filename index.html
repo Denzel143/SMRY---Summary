@@ -42,8 +42,7 @@ input:focus,textarea:focus{border-color:var(--indigo)}
 .hall img{width:64px;height:64px;object-fit:cover;border-radius:10px;background:var(--line)}
 .hall .t{font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .addbar{display:flex;justify-content:flex-end;padding:10px var(--gx);border-top:1px solid var(--line)} /* di luar area gulir → tidak menimpa daftar */
-.fab{width:54px;height:54px;border-radius:50%;padding:0;font-size:34px;line-height:1;background:var(--indigo);color:#fff;box-shadow:0 3px 10px rgba(0,0,0,.3)}
-@media (hover:hover){button.fab:hover:not(:disabled){background:color-mix(in srgb,var(--indigo) 85%,#000)}}
+.fab{width:58px;height:58px;border-radius:50%;padding:0;font-size:36px;line-height:1} /* tanpa latar; isi lingkaran muncul saat hover/diklik (gaya tombol umum) */
 .head{display:flex;align-items:center;gap:6px;padding:10px calc(var(--gx) - 4px);border-bottom:1px solid var(--line)}
 .foot{padding:12px var(--gx);border-top:1px solid var(--line)}
 .drop{border:2px dashed var(--indigo);border-radius:18px;padding:28px;text-align:center;background:var(--panel);cursor:pointer;margin:12px 0}
@@ -487,6 +486,22 @@ function popMenu(anchor, items) {
   document.body.append(m);
   setTimeout(() => document.addEventListener("click", () => m.remove(), { once: true }), 0);
 }
+/* Menu di posisi kursor (dipakai klik kanan / tekan lama). Tertutup oleh klik, Esc, gulir, atau klik kanan berikutnya. */
+function popMenuAt(x, y, items) {
+  document.querySelectorAll(".menu").forEach(m => m.remove());
+  const m = h("div", { class: "menu", style: "top:" + Math.max(8, Math.min(y, innerHeight - items.length * 46 - 10)) + "px;left:" + Math.max(8, Math.min(x, innerWidth - 200)) + "px" },
+    items.map(([label, fn]) => h("div", { onclick: () => { m.remove(); fn(); } }, label)));
+  document.body.append(m);
+  const close = () => { m.remove(); document.removeEventListener("keydown", onKey, true); window.removeEventListener("scroll", close, true); };
+  const onKey = e => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey, true);
+  window.addEventListener("scroll", close, true);
+  setTimeout(() => document.addEventListener("click", close, { once: true }), 0);
+}
+function copyText(t) {
+  const fallback = () => { const a = h("textarea", { style: "position:fixed;opacity:0" }); a.value = t; document.body.append(a); a.select(); try { document.execCommand("copy"); } catch {} a.remove(); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).catch(fallback); else fallback();
+}
 function lightbox(photos, start) {
   let i = start, zoom = false;
   const img = h("img"), cnt = h("span");
@@ -646,6 +661,7 @@ function openSettings() {
 /* ── Home ── */
 function homeScreen() {
   const list = h("div", { class: "scroll cards" });
+  const menuFor = x => [["Rename", () => renameHall(x, fillList)], ["Delete", () => deleteHall(x)]];
   const fillList = () => {
     list.innerHTML = "";
     const q = App.query.trim().toLowerCase(), sort = LS.get("sort", 0);
@@ -653,9 +669,9 @@ function homeScreen() {
     const cmp = [(a, b) => b.updatedAt - a.updatedAt, (a, b) => b.createdAt - a.createdAt, (a, b) => a.createdAt - b.createdAt, (a, b) => a.title.localeCompare(b.title), (a, b) => b.title.localeCompare(a.title), (a, b) => a.subject.localeCompare(b.subject) || b.updatedAt - a.updatedAt][sort];
     items.sort(cmp);
     if (!items.length) { list.append(h("p", { class: "sec center", style: "margin-top:60px" }, App.halls.length ? "No Study Hall matches your search." : "No Study Halls yet. Tap + to create your first one.")); return; }
-    items.forEach(x => list.append(h("div", { class: "card hall", onclick: () => go("hall", { hallId: x.id, temp: false }) },
+    items.forEach(x => list.append(h("div", { class: "card hall", onclick: () => go("hall", { hallId: x.id, temp: false }), oncontextmenu: e => { e.preventDefault(); e.stopPropagation(); popMenuAt(e.clientX, e.clientY, menuFor(x)); } },
       h("img", { src: x.photos[0] || "" }), h("div", { class: "grow" }, h("div", { class: "t" }, x.title), h("div", { class: "sec small" }, x.subject), h("div", { class: "sec small" }, fmtDate(x.updatedAt))),
-      h("button", { class: "icon", "aria-label": "More", onclick: e => { e.stopPropagation(); popMenu(e.currentTarget, [["Rename", () => renameHall(x, fillList)], ["Delete", () => deleteHall(x)]]); } }, "⋮"))));
+      h("button", { class: "icon", "aria-label": "More", onclick: e => { e.stopPropagation(); popMenu(e.currentTarget, menuFor(x)); } }, "⋮"))));
   };
   const search = field("input", { type: "search", placeholder: "Search Study Halls", value: App.query, oninput: e => { App.query = e.target.value; fillList(); } });
   const sortBtn = h("button", { class: "icon", "aria-label": "Sort", onclick: e => popMenu(e.currentTarget, SORTS.map((l, i) => [(LS.get("sort", 0) === i ? "✓ " : "   ") + l, () => { LS.set("sort", i); fillList(); }])) }, "⇅");
@@ -859,6 +875,21 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme
   render();
   if (Cloud.signedIn()) Cloud.sync();
 })();
+/* Klik kanan / tekan lama: menu bawaan browser dimatikan, diganti menu kustom.
+   Kolom ketik (input/textarea) tetap memakai menu bawaan agar tempel/salin tetap bisa. */
+document.addEventListener("contextmenu", e => {
+  const t = e.target instanceof Element ? e.target : document.body;
+  if (t.closest("input,textarea,[contenteditable=true]")) return;
+  e.preventDefault();
+  if (document.querySelector(".overlay,.lightbox,.camlay")) return; // saat dialog/preview terbuka: tidak ada menu
+  const items = [], sel = String(getSelection()).trim(), bub = t.closest(".bubble");
+  if (sel) items.push(["Copy", () => copyText(sel)]);
+  else if (bub) items.push(["Copy message", () => copyText(bub.innerText)]);
+  items.push(["Settings", openSettings]);
+  if (Cloud.signedIn()) items.push(["Sync now", () => Cloud.sync()]);
+  popMenuAt(e.clientX, e.clientY, items);
+});
+
 /* Sync otomatis dua arah: tiap perubahan selesai (lihat DB.put/del → Cloud.schedule), saat tab kembali aktif / online,
    dan cek berkala tiap SYNC_POLL_MS untuk mengambil perubahan dari perangkat lain. */
 const SYNC_POLL_MS = 60000;
