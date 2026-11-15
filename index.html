@@ -258,6 +258,28 @@ const Cloud = {
     else { photos = []; for (let i = 0; i < n; i++) photos.push((await this.api({ action: "getPhoto", id, n: i })).data); }
     await DB.put(this.fromCloud(j, photos), true);
   },
+  /* Ringkasan keseluruhan ("Summarize all") disimpan sebagai satu catatan khusus berid tetap; bukan Study Hall. Terbaru menang. Mengembalikan [diunggah, diunduh]. */
+  OVERALL_ID: "__overall__",
+  async syncOverall(manifest) {
+    const local = LS.get("overall", null), r = manifest[this.OVERALL_ID];
+    const remote = !!r && !r.deleted, ru = remote ? (r.updatedAt || 0) : 0;
+    if (local && local.summary && (!remote || local.date > ru)) {
+      const s = local.summary;
+      await this.api({ action: "put", photos: 0, hall: { id: this.OVERALL_ID, title: "Summarize all", subject: "", userPrompt: "", createdAt: local.date, updatedAt: local.date,
+        summary: { title: "Summarize all", summary: s.overview || "", keyPoints: s.topics || [], explanation: "", legend: [] }, messages: [],
+        overall: { summary: s, date: local.date, hallCount: local.count || 0 } } });
+      return [1, 0];
+    }
+    if (remote && (!local || ru > local.date)) {
+      const j = (await this.api({ action: "get", id: this.OVERALL_ID })).hall, o = j && j.overall;
+      if (!o || !o.summary) return [0, 0];
+      const s = o.summary;
+      App.overall = { summary: { overview: s.overview || "", topics: s.topics || [], details: s.details || [], legend: s.legend || [] }, date: ru, count: o.hallCount || 0 };
+      LS.set("overall", App.overall);
+      return [0, 1];
+    }
+    return [0, 0];
+  },
   async sync(quiet) {
     if (!this.signedIn()) return;
     if (this.running) { this.again = true; return; } // ada perubahan saat sync berjalan → ulangi setelah selesai
@@ -285,11 +307,13 @@ const Cloud = {
         else if (x.updatedAt > r.updatedAt) { await this.push(x, (r.photos || 0) < x.photos.length); up++; }
         else if (r.updatedAt > x.updatedAt) { if (x.id !== openId) { await this.pull(x.id, r.photos || 0, x); down++; } }
       }
-      for (const [id, r] of Object.entries(manifest)) if (!r.deleted && !byId.has(id)) { await this.pull(id, r.photos || 0, null); down++; }
+      for (const [id, r] of Object.entries(manifest)) if (id !== this.OVERALL_ID && !r.deleted && !byId.has(id)) { await this.pull(id, r.photos || 0, null); down++; }
+      let warn = "";
+      try { const [u, d] = await this.syncOverall(manifest); up += u; down += d; } catch (e) { warn = " (Summarize all failed: " + e.message + ")"; }
       this.last = Date.now(); LS.set("cloudLast", this.last);
       if (App.view === "home") App.halls = await DB.all(); // di layar lain daftar disegarkan saat kembali ke home
       changed = up + down + removed > 0;
-      msg = up + down + removed === 0 ? "Already in sync." : "Synced: " + up + " uploaded, " + down + " downloaded" + (removed ? ", " + removed + " removed" : "") + ".";
+      msg = (up + down + removed === 0 ? "Already in sync." : "Synced: " + up + " uploaded, " + down + " downloaded" + (removed ? ", " + removed + " removed" : "") + ".") + warn;
     } catch (e) { ok = false; msg = e.message; }
     this.running = false;
     if (!(quiet && ok && !changed)) { // pengecekan otomatis yang tidak mengubah apa pun: diam, tanpa render ulang
@@ -708,7 +732,7 @@ async function startOverall() {
   st.loading = true; st.error = null; st.abort = new AbortController(); rerender();
   try {
     const r = await summarizeAll(App.halls, LS.get("r_overall", false), s => { st.status = s; if (App.view === "home" && App.tab === "summary") rerender(); }, st.abort.signal);
-    App.overall = { summary: r, date: Date.now(), count: App.halls.length }; LS.set("overall", App.overall);
+    App.overall = { summary: r, date: Date.now(), count: App.halls.length }; LS.set("overall", App.overall); Cloud.schedule();
   } catch (e) { if (e.name !== "AbortError") st.error = e.message; }
   st.loading = false; rerender();
 }
