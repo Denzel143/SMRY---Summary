@@ -114,7 +114,7 @@ function h(tag, attrs, ...kids) {
     else if (k in e && k !== "list") try { e[k] = v; } catch { e.setAttribute(k, v); }
     else e.setAttribute(k, v === true ? "" : v);
   }
-  for (const c of kids.flat()) if (c !== null && c !== undefined && c !== false) e.append(c.nodeType ? c : document.createTextNode(c));
+  for (const c of kids.flat(Infinity)) if (c !== null && c !== undefined && c !== false) e.append(c.nodeType ? c : document.createTextNode(c));
   return e;
 }
 const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -259,7 +259,7 @@ const Cloud = {
     await DB.put(this.fromCloud(j, photos), true);
   },
   /* Ringkasan keseluruhan ("Summarize all") disimpan sebagai satu catatan khusus berid tetap; bukan Study Hall. Terbaru menang. Mengembalikan [diunggah, diunduh]. */
-  OVERALL_ID: "__overall__",
+  OVERALL_ID: "0a11a11a-0a11-4a11-8a11-0a11a11a11a1",
   async syncOverall(manifest) {
     const local = LS.get("overall", null), r = manifest[this.OVERALL_ID];
     const remote = !!r && !r.deleted, ru = remote ? (r.updatedAt || 0) : 0;
